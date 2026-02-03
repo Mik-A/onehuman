@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const sanitizeHtml = require('sanitize-html');
 require('dotenv').config();
 
 const app = express();
@@ -159,11 +158,8 @@ function sanitizeContent(content) {
   if (content.length > MAX_CONTENT_LENGTH) {
     content = content.substring(0, MAX_CONTENT_LENGTH);
   }
-  return sanitizeHtml(content, {
-    allowedTags: ['b', 'i', 'em', 'strong', 'p', 'br', 'a', 'ul', 'ol', 'li'],
-    allowedAttributes: { 'a': ['href'] },
-    disallowedTagsMode: 'discard'
-  });
+  // Remove all HTML tags, keep only plain text
+  return content.replace(/<[^>]*>/g, '').trim();
 }
 
 function getLoginLinks() {

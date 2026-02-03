@@ -490,8 +490,8 @@
             currentEditElement = el;
             const selector = el.dataset.selector;
             document.getElementById('editModalTitle').textContent = `Edit: ${selector}`;
-            // Use innerHTML to preserve HTML tags
-            document.getElementById('editContent').value = el.innerHTML;
+            // Use textContent to show plain text (no HTML)
+            document.getElementById('editContent').value = el.textContent;
             document.getElementById('editModal').classList.add('active');
             document.getElementById('editContent').focus();
         }
@@ -517,7 +517,7 @@
             });
 
             if (response.ok) {
-                currentEditElement.innerHTML = content;
+                currentEditElement.textContent = sanitized;
                 cmsShowStatus('Saved!');
                 cmsCloseEditModal();
             } else {
@@ -586,7 +586,8 @@
                     if (el.tagName === 'IMG') {
                         el.src = value;
                     } else {
-                        el.innerHTML = value;
+                        // Use textContent for plain text only
+                        el.textContent = value;
                     }
                 }
             }
