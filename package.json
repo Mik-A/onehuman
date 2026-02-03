@@ -1,0 +1,16 @@
+{
+  "name": "onehuman-cms",
+  "version": "1.0.0",
+  "description": "Frontend CMS for One Human",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "dotenv": "^16.3.1",
+    "nodemailer": "^6.9.7"
+  }
+}

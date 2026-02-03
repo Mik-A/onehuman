@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CMS - One Human</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* CMS Specific Styles */
+        .cms-toolbar {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #faf9f7;
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 999;
+            font-size: 0.9rem;
+        }
+
+        .cms-toolbar button {
+            background: #c54b2a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .cms-toolbar button:hover {
+            background: #a83b1f;
+        }
+
+        .cms-editable {
+            position: relative;
+            outline: 2px dashed transparent;
+            transition: outline 0.2s;
+        }
+
+        .cms-editable:hover {
+            outline: 2px dashed #c54b2a;
+        }
+
+        .cms-edit-icon {
+            position: absolute;
+            top: -25px;
+            right: 0;
+            width: 24px;
+            height: 24px;
+            background: #c54b2a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 100;
+        }
+
+        .cms-editable:hover .cms-edit-icon {
+            display: flex;
+        }
+
+        .cms-image-upload {
+            position: absolute;
+            top: -25px;
+            right: 30px;
+            background: #c54b2a;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: none;
+            z-index: 100;
+        }
+
+        .cms-image-container:hover .cms-image-upload {
+            display: block;
+        }
+
+        .cms-image-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .cms-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1001;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cms-modal.active {
+            display: flex;
+        }
+
+        .cms-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .cms-modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .cms-modal-content textarea,
+        .cms-modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .cms-modal-content textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+
+        .cms-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .cms-modal-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .cms-save {
+            background: #c54b2a;
+            color: white;
+        }
+
+        .cms-save:hover {
+            background: #a83b1f;
+        }
+
+        .cms-cancel {
+            background: #e8e6e3;
+            color: #1a1a1a;
+        }
+
+        .cms-cancel:hover {
+            background: #d0ccc8;
+        }
+
+        .cms-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #c54b2a;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            display: none;
+            z-index: 1000;
+        }
+
+        .cms-status.show {
+            display: block;
+        }
+
+        @media (max-width: 700px) {
+            .cms-toolbar {
+                top: 100px;
+                right: 10px;
+                padding: 12px 15px;
+                flex-direction: column;
+            }
+
+            .cms-toolbar button {
+                margin-left: 0;
+                margin-top: 8px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="cms-toolbar" id="cmsToolbar" style="display: none;">
+        <span>Editing Mode ON</span>
+        <button onclick="cmsSaveAll()">Save All</button>
+        <button onclick="cmsLogout()">Logout</button>
+    </div>
+
+    <div class="cms-status" id="cmsStatus"></div>
+
+    <!-- Login Modal -->
+    <div class="cms-modal" id="loginModal">
+        <div class="cms-modal-content">
+            <h2>Login</h2>
+            <input type="email" id="loginEmail" placeholder="Enter your email" />
+            <div class="cms-modal-buttons">
+                <button class="cms-save" onclick="cmsLogin()">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="cms-modal" id="editModal">
+        <div class="cms-modal-content">
+            <h2 id="editModalTitle">Edit Content</h2>
+            <textarea id="editContent"></textarea>
+            <div class="cms-modal-buttons">
+                <button class="cms-cancel" onclick="cmsCloseEditModal()">Cancel</button>
+                <button class="cms-save" onclick="cmsSaveContent()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Upload Modal -->
+    <div class="cms-modal" id="imageModal">
+        <div class="cms-modal-content">
+            <h2>Upload Image</h2>
+            <input type="file" id="imageFile" accept="image/*" />
+            <div class="cms-modal-buttons">
+                <button class="cms-cancel" onclick="cmsCloseImageModal()">Cancel</button>
+                <button class="cms-save" onclick="cmsUploadImage()">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="product-nav">
+        <a href="#emperor">Yolo Emperor</a>
+        <a href="#yolo">Yolo Agent</a>
+        <a href="#responsible">The Responsible One</a>
+    </nav>
+
+    <div class="container">
+
+        <header>
+            <h1 class="cms-editable" data-selector="header-title">One Human</h1>
+            <p class="tagline cms-editable" data-selector="header-tagline">One human. One thousand agents.</p>
+            <p class="tagline-secondary cms-editable" data-selector="header-tagline-secondary">We sell constraints. More guardrails means more value, higher price. If you want fast and cheap with the whole world as your oyster — we help you with that. Five minutes and you have your army. Take care and please save me.</p>
+        </header>
+
+        <section>
+            <h2>What</h2>
+            <p class="large cms-editable" data-selector="what-1">AI that does actual work. Not a chatbot you talk to. Not an assistant that suggests things. A worker that handles tasks and delivers results.</p>
+            <p class="cms-editable" data-selector="what-2">Research, writing, data processing, repetitive tasks — you tell me what needs doing. We talk, I find the bottlenecks, figure out what's eating your time, and build something that handles it. Runs on a server in Finland. You can watch it work. You can stop it anytime.</p>
+            <p class="cms-editable" data-selector="what-3">Runs for mere server costs. More intelligence needed? We evaluate and pick the most useful and cost-effective model.</p>
+            <p class="cms-editable" data-selector="what-4">Want full control with no safety net? That's the cheap option. Maybe. Want me to keep it on a leash? That costs more.</p>
+        </section>
+
+        <section>
+            <h2>Agents</h2>
+            <div class="agents">
+
+                <div class="agent" id="emperor">
+                    <div class="cms-image-container">
+                        <img src="/images/placeholder.png" alt="Emperor" class="cms-editable agent-image" data-selector="emperor-image">
+                        <button class="cms-image-upload" onclick="cmsOpenImageModal('emperor-image')">Change</button>
+                    </div>
+                    <div class="agent-details">
+                        <div class="agent-number">01</div>
+                        <h3 class="cms-editable" data-selector="emperor-title">Yolo Emperor</h3>
+                        <p class="cms-editable" data-selector="emperor-desc">You want the keys? Here are the keys. AI that works for you — handles tasks, runs processes, delivers results. Installed on a server in Finland, connected to AI, handed over to you. Whatever happens next is between you and the machine. Yolo. Documentation included.</p>
+                        <ul class="agent-details-list">
+                            <li class="cms-editable" data-selector="emperor-li-1">Fast setup</li>
+                            <li class="cms-editable" data-selector="emperor-li-2">Complete access</li>
+                            <li class="cms-editable" data-selector="emperor-li-3">Your kingdom, your problem</li>
+                            <li class="cms-editable" data-selector="emperor-li-4">No warranty</li>
+                        </ul>
+                        <div class="agent-price cms-editable" data-selector="emperor-price">299 €</div>
+                    </div>
+                </div>
+
+                <div class="agent" id="yolo">
+                    <div class="cms-image-container">
+                        <img src="/images/placeholder.png" alt="Yolo" class="cms-editable agent-image" data-selector="yolo-image">
+                        <button class="cms-image-upload" onclick="cmsOpenImageModal('yolo-image')">Change</button>
+                    </div>
+                    <div class="agent-details">
+                        <div class="agent-number">02</div>
+                        <h3 class="cms-editable" data-selector="yolo-title">Yolo Agent</h3>
+                        <p class="cms-editable" data-selector="yolo-desc">AI that works for you, with some guardrails. It handles your tasks but won't go completely off-script. You still drive, but there's a seatbelt. Installed on a server in Finland, connected to AI. A middle path for the reasonably brave. Yolo, but with limits. Documentation included.</p>
+                        <ul class="agent-details-list">
+                            <li class="cms-editable" data-selector="yolo-li-1">Basic boundaries in place</li>
+                            <li class="cms-editable" data-selector="yolo-li-2">Task limits defined</li>
+                            <li class="cms-editable" data-selector="yolo-li-3">You can stop it</li>
+                            <li class="cms-editable" data-selector="yolo-li-4">Limited warranty</li>
+                        </ul>
+                        <div class="agent-price cms-editable" data-selector="yolo-price">699 €</div>
+                    </div>
+                </div>
+
+                <div class="agent" id="responsible">
+                    <div class="cms-image-container">
+                        <img src="/images/placeholder.png" alt="Responsible" class="cms-editable agent-image" data-selector="responsible-image">
+                        <button class="cms-image-upload" onclick="cmsOpenImageModal('responsible-image')">Change</button>
+                    </div>
+                    <div class="agent-details">
+                        <div class="agent-number">03</div>
+                        <h3 class="cms-editable" data-selector="responsible-title">The Responsible One</h3>
+                        <p class="cms-editable" data-selector="responsible-desc">The grown-up choice. AI that works for you, built exactly to your needs, with clear limits on what it can and cannot do. We scope it together, I build it right, and I stay involved. You can stop tasks but cannot add new ones without me. For those who've been burned before — or just prefer to sleep at night.</p>
+                        <ul class="agent-details-list">
+                            <li class="cms-editable" data-selector="responsible-li-1">Scoped to your specific needs</li>
+                            <li class="cms-editable" data-selector="responsible-li-2">Boundaries enforced</li>
+                            <li class="cms-editable" data-selector="responsible-li-3">Full logging</li>
+                            <li class="cms-editable" data-selector="responsible-li-4">Full warranty</li>
+                            <li class="cms-editable" data-selector="responsible-li-5">I maintain, you sleep</li>
+                        </ul>
+                        <div class="agent-price cms-editable" data-selector="responsible-price">from 2900 €</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section>
+            <h2>Add-ons</h2>
+            <div class="addons">
+                <div class="addon">
+                    <span class="cms-editable" data-selector="addon-1">New task (Responsible)</span>
+                    <span class="addon-price cms-editable" data-selector="addon-1-price">from 290 €</span>
+                </div>
+                <div class="addon">
+                    <span class="cms-editable" data-selector="addon-2">Private AI box, European</span>
+                    <span class="addon-price cms-editable" data-selector="addon-2-price">ask</span>
+                </div>
+                <div class="addon">
+                    <span class="cms-editable" data-selector="addon-3">Private AI box, budget</span>
+                    <span class="addon-price cms-editable" data-selector="addon-3-price">ask</span>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>The Human</h2>
+            <div class="about-grid">
+                <div class="years">
+                    30
+                    <span>years building</span>
+                </div>
+                <div>
+                    <p class="cms-editable" data-selector="about-1">I'm <strong>Mika</strong>. Thirty years building things that work. Twenty of those in web applications.</p>
+                    <p class="cms-editable" data-selector="about-2">I've seen enough systems fail to know what "controlled" actually means. I don't oversell. I don't promise magic. I build agents that do their job and don't surprise you.</p>
+                    <p class="cms-editable" data-selector="about-3">Unless you want surprises. We have Yolo for that.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Honesty</h2>
+            <div class="honesty-grid">
+                <div>
+                    <h3>I don't promise</h3>
+                    <p class="small cms-editable" data-selector="honesty-1">AI safety. LLMs are fundamentally unpredictable. Anyone selling you "safe AI" is selling dreams.</p>
+                </div>
+                <div>
+                    <h3>I do promise</h3>
+                    <p class="small cms-editable" data-selector="honesty-2">Boundaries. Visibility. Control. Stop buttons. And if you touch the code, warranty's gone.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="contact">
+            <h2>Contact</h2>
+            <p class="large"><a href="mailto:mika@XXXXX.XX" class="cms-editable" data-selector="contact-email">mika@XXXXX.XX</a></p>
+            <p class="small" style="margin-top: 2rem;">Or find me on LinkedIn. I'm the one with one thousand agents.</p>
+        </section>
+
+    </div>
+
+    <footer>
+        <p>© 2026 One Human</p>
+        <p>No cookies. No tracking. Just agents.</p>
+        <p class="footer-location">Finland</p>
+    </footer>
+
+    <!-- User Icon -->
+    <button class="user-icon" id="userIconBtn" aria-label="Login">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+    </button>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <button class="modal-close" id="closeModalBtn">&times;</button>
+            <h2>Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn-submit">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('cms-token');
+        let currentEditElement = null;
+        let currentImageSelector = null;
+
+        // Check auth on load
+        window.addEventListener('load', async () => {
+            if (token) {
+                const check = await fetch('/api/auth/check', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await check.json();
+                
+                if (result.logged) {
+                    cmsEnableEditing();
+                } else {
+                    token = null;
+                    localStorage.removeItem('cms-token');
+                }
+            } else {
+                // Not logged in - don't auto-open modal
+            }
+
+            await cmsLoadContent();
+        });
+
+        async function cmsLogin() {
+            const email = document.getElementById('loginEmail').value.trim();
+            if (!email) return alert('Please enter email');
+
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                token = result.token;
+                localStorage.setItem('cms-token', token);
+                document.getElementById('loginModal').classList.remove('active');
+                cmsEnableEditing();
+            } else {
+                alert(result.error || 'Login failed');
+            }
+        }
+
+        function cmsEnableEditing() {
+            document.getElementById('cmsToolbar').style.display = 'flex';
+            
+            document.querySelectorAll('.cms-editable').forEach(el => {
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', (e) => {
+                    if (el.tagName === 'IMG') {
+                        // Image click handled separately
+                        return;
+                    }
+                    cmsOpenEditModal(el);
+                });
+            });
+        }
+
+        function cmsOpenEditModal(el) {
+            currentEditElement = el;
+            const selector = el.dataset.selector;
+            document.getElementById('editModalTitle').textContent = `Edit: ${selector}`;
+            // Use innerHTML to preserve HTML tags
+            document.getElementById('editContent').value = el.innerHTML;
+            document.getElementById('editModal').classList.add('active');
+            document.getElementById('editContent').focus();
+        }
+
+        function cmsCloseEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            currentEditElement = null;
+        }
+
+        async function cmsSaveContent() {
+            if (!currentEditElement) return;
+            
+            const selector = currentEditElement.dataset.selector;
+            const content = document.getElementById('editContent').value;
+            
+            const response = await fetch('/api/content/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ selector, content })
+            });
+
+            if (response.ok) {
+                currentEditElement.innerHTML = content;
+                cmsShowStatus('Saved!');
+                cmsCloseEditModal();
+            } else {
+                alert('Save failed');
+            }
+        }
+
+        function cmsOpenImageModal(selector) {
+            currentImageSelector = selector;
+            document.getElementById('imageModal').classList.add('active');
+            document.getElementById('imageFile').value = '';
+        }
+
+        function cmsCloseImageModal() {
+            document.getElementById('imageModal').classList.remove('active');
+            currentImageSelector = null;
+        }
+
+        async function cmsUploadImage() {
+            const file = document.getElementById('imageFile').files[0];
+            if (!file) return alert('Please select an image');
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const response = await fetch('/api/upload/image', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const imgEl = document.querySelector(`[data-selector="${currentImageSelector}"]`);
+                imgEl.src = result.url;
+                
+                // Save image reference
+                await fetch('/api/content/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ 
+                        selector: currentImageSelector, 
+                        content: result.url 
+                    })
+                });
+
+                cmsShowStatus('Image uploaded!');
+                cmsCloseImageModal();
+            } else {
+                alert('Upload failed');
+            }
+        }
+
+        async function cmsLoadContent() {
+            const response = await fetch('/api/content');
+            const content = await response.json();
+
+            for (const [selector, value] of Object.entries(content)) {
+                const el = document.querySelector(`[data-selector="${selector}"]`);
+                if (el) {
+                    if (el.tagName === 'IMG') {
+                        el.src = value;
+                    } else {
+                        el.innerHTML = value;
+                    }
+                }
+            }
+        }
+
+        async function cmsSaveAll() {
+            cmsShowStatus('Saving...');
+            // Content auto-saves on edit, this just gives user feedback
+            setTimeout(() => cmsShowStatus('All changes saved!'), 500);
+        }
+
+        async function cmsLogout() {
+            if (confirm('Logout?')) {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                localStorage.removeItem('cms-token');
+                token = null;
+                location.reload();
+            }
+        }
+
+        function cmsShowStatus(message) {
+            const status = document.getElementById('cmsStatus');
+            status.textContent = message;
+            status.classList.add('show');
+            setTimeout(() => status.classList.remove('show'), 3000);
+        }
+
+        // Allow Enter key in modals
+        document.getElementById('editContent').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') cmsSaveContent();
+        });
+
+        // Login Modal Handler
+        const userIconBtn = document.getElementById('userIconBtn');
+        const loginModal = document.getElementById('loginModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const loginForm = document.getElementById('loginForm');
+
+        if (userIconBtn && loginModal) {
+            // Open modal when clicking user icon
+            userIconBtn.addEventListener('click', () => {
+                loginModal.classList.toggle('active');
+            });
+
+            // Close modal when clicking close button
+            closeModalBtn.addEventListener('click', () => {
+                loginModal.classList.remove('active');
+            });
+
+            // Close modal when clicking outside the modal content
+            window.addEventListener('click', (event) => {
+                if (event.target === loginModal) {
+                    loginModal.classList.remove('active');
+                }
+            });
+
+            // Handle form submission
+            loginForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                console.log('Login attempt:', { email, password });
+                // Add your login logic here
+                loginModal.classList.remove('active');
+                loginForm.reset();
+            });
+        }
+    </script>
+</body>
+</html>
