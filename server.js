@@ -71,6 +71,10 @@ const transporter = nodemailer.createTransport({
 // Initialize files
 if (!fs.existsSync(SESSIONS_FILE)) {
   fs.writeFileSync(SESSIONS_FILE, JSON.stringify({}));
+} else {
+  // Clear all sessions on server start (logout everyone)
+  console.log('[INIT] Clearing all sessions on server start');
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify({}));
 }
 if (!fs.existsSync(CONTENT_FILE)) {
   fs.writeFileSync(CONTENT_FILE, JSON.stringify({}));
