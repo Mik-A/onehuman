@@ -212,8 +212,8 @@
 
     <div class="cms-toolbar" id="cmsToolbar" style="display: none;">
         <span>Editing Mode ON</span>
-        <button onclick="cmsSaveAll()">Save All</button>
-        <button onclick="cmsLogout()">Logout</button>
+        <button id="cmsSaveAllBtn">Save All</button>
+        <button id="cmsLogoutBtn">Logout</button>
     </div>
 
     <div class="cms-status" id="cmsStatus"></div>
@@ -224,7 +224,7 @@
             <h2>Login</h2>
             <input type="email" id="loginEmail" placeholder="Enter your email" />
             <div class="cms-modal-buttons">
-                <button class="cms-save" onclick="cmsLogin()">Login</button>
+                <button class="cms-save" id="cmsLoginBtn">Login</button>
             </div>
         </div>
     </div>
@@ -235,8 +235,8 @@
             <h2 id="editModalTitle">Edit Content</h2>
             <textarea id="editContent"></textarea>
             <div class="cms-modal-buttons">
-                <button class="cms-cancel" onclick="cmsCloseEditModal()">Cancel</button>
-                <button class="cms-save" onclick="cmsSaveContent()">Save</button>
+                <button class="cms-cancel" id="cmsCloseEditModalBtn">Cancel</button>
+                <button class="cms-save" id="cmsSaveContentBtn">Save</button>
             </div>
         </div>
     </div>
@@ -247,8 +247,8 @@
             <h2>Upload Image</h2>
             <input type="file" id="imageFile" accept="image/*" />
             <div class="cms-modal-buttons">
-                <button class="cms-cancel" onclick="cmsCloseImageModal()">Cancel</button>
-                <button class="cms-save" onclick="cmsUploadImage()">Upload</button>
+                <button class="cms-cancel" id="cmsCloseImageModalBtn">Cancel</button>
+                <button class="cms-save" id="cmsUploadImageBtn">Upload</button>
             </div>
         </div>
     </div>
@@ -282,7 +282,7 @@
                 <div class="agent" id="emperor">
                     <div class="cms-image-container">
                         <img src="/images/placeholder.png" alt="Emperor" class="cms-editable agent-image" data-selector="emperor-image">
-                        <button class="cms-image-upload" onclick="cmsOpenImageModal('emperor-image')">Change</button>
+                        <button class="cms-image-upload cms-open-image-btn" data-selector="emperor-image">Change</button>
                     </div>
                     <div class="agent-details">
                         <div class="agent-number">01</div>
@@ -301,7 +301,7 @@
                 <div class="agent" id="yolo">
                     <div class="cms-image-container">
                         <img src="/images/placeholder.png" alt="Yolo" class="cms-editable agent-image" data-selector="yolo-image">
-                        <button class="cms-image-upload" onclick="cmsOpenImageModal('yolo-image')">Change</button>
+                        <button class="cms-image-upload cms-open-image-btn" data-selector="yolo-image">Change</button>
                     </div>
                     <div class="agent-details">
                         <div class="agent-number">02</div>
@@ -320,7 +320,7 @@
                 <div class="agent" id="responsible">
                     <div class="cms-image-container">
                         <img src="/images/placeholder.png" alt="Responsible" class="cms-editable agent-image" data-selector="responsible-image">
-                        <button class="cms-image-upload" onclick="cmsOpenImageModal('responsible-image')">Change</button>
+                        <button class="cms-image-upload cms-open-image-btn" data-selector="responsible-image">Change</button>
                     </div>
                     <div class="agent-details">
                         <div class="agent-number">03</div>
@@ -430,8 +430,39 @@
         let currentEditElement = null;
         let currentImageSelector = null;
 
+        // Setup event listeners (CSP compliant - no inline onclick)
+        function setupEventListeners() {
+            // Toolbar buttons
+            const saveAllBtn = document.getElementById('cmsSaveAllBtn');
+            const logoutBtn = document.getElementById('cmsLogoutBtn');
+            const loginBtn = document.getElementById('cmsLoginBtn');
+            const closeEditBtn = document.getElementById('cmsCloseEditModalBtn');
+            const saveContentBtn = document.getElementById('cmsSaveContentBtn');
+            const closeImageBtn = document.getElementById('cmsCloseImageModalBtn');
+            const uploadImageBtn = document.getElementById('cmsUploadImageBtn');
+            const openImageBtns = document.querySelectorAll('.cms-open-image-btn');
+
+            if (saveAllBtn) saveAllBtn.addEventListener('click', cmsSaveAll);
+            if (logoutBtn) logoutBtn.addEventListener('click', cmsLogout);
+            if (loginBtn) loginBtn.addEventListener('click', cmsLogin);
+            if (closeEditBtn) closeEditBtn.addEventListener('click', cmsCloseEditModal);
+            if (saveContentBtn) saveContentBtn.addEventListener('click', cmsSaveContent);
+            if (closeImageBtn) closeImageBtn.addEventListener('click', cmsCloseImageModal);
+            if (uploadImageBtn) uploadImageBtn.addEventListener('click', cmsUploadImage);
+
+            // Open image modal buttons with data-selector
+            openImageBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const selector = btn.getAttribute('data-selector');
+                    cmsOpenImageModal(selector);
+                });
+            });
+        }
+
         // Check auth on load
         window.addEventListener('load', async () => {
+            setupEventListeners();
+            
             if (token) {
                 const check = await fetch('/api/auth/check', {
                     headers: { 'Authorization': `Bearer ${token}` }
