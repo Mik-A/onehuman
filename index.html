@@ -177,11 +177,8 @@
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" required>
                 </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-                <button type="submit" class="btn-submit">Sign In</button>
+                <button type="submit" class="btn-submit">Send Login Link</button>
+                <p class="login-message" id="loginMessage" style="display: none; margin-top: 1rem; text-align: center; color: var(--accent);"></p>
             </form>
         </div>
     </div>
@@ -210,14 +207,39 @@
         });
 
         // Handle form submission
-        loginForm.addEventListener('submit', (event) => {
+        loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            console.log('Login attempt:', { email, password });
-            // Add your login logic here
-            loginModal.classList.remove('active');
-            loginForm.reset();
+            const messageEl = document.getElementById('loginMessage');
+            
+            try {
+                const response = await fetch('/api/auth/request-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    messageEl.textContent = 'Check your email for login link!';
+                    messageEl.style.display = 'block';
+                    loginForm.reset();
+                    setTimeout(() => {
+                        messageEl.style.display = 'none';
+                        loginModal.classList.remove('active');
+                    }, 3000);
+                } else {
+                    messageEl.textContent = result.error || 'Failed to send link';
+                    messageEl.style.display = 'block';
+                    messageEl.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                messageEl.textContent = 'Error sending link';
+                messageEl.style.display = 'block';
+                messageEl.style.color = 'red';
+            }
         });
     </script>
 

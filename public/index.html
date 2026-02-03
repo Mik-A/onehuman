@@ -419,11 +419,8 @@
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" required>
                 </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-                <button type="submit" class="btn-submit">Sign In</button>
+                <button type="submit" class="btn-submit">Send Login Link</button>
+                <p class="login-message" id="loginMessage" style="display: none; margin-top: 1rem; text-align: center; color: var(--accent);"></p>
             </form>
         </div>
     </div>
@@ -458,7 +455,7 @@
             const email = document.getElementById('loginEmail').value.trim();
             if (!email) return alert('Please enter email');
 
-            const response = await fetch('/api/auth/login', {
+            const response = await fetch('/api/auth/request-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
@@ -466,12 +463,11 @@
 
             const result = await response.json();
             if (result.success) {
-                token = result.token;
-                localStorage.setItem('cms-token', token);
+                alert('Login link sent to your email! Check your inbox.');
+                document.getElementById('loginEmail').value = '';
                 document.getElementById('loginModal').classList.remove('active');
-                cmsEnableEditing();
             } else {
-                alert(result.error || 'Login failed');
+                alert(result.error || 'Failed to send login link');
             }
         }
 
