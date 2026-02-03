@@ -4,16 +4,52 @@ const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const sanitizeHtml = require('sanitize-html');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Security Middleware
+app.use(helmet()); // Set security headers
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],
+    styleSrc: ["'self'", "'unsafe-inline'", 'fonts.googleapis.com', 'fonts.gstatic.com'],
+    fontSrc: ['fonts.gstatic.com'],
+    imgSrc: ["'self'", 'data:'],
+    connectSrc: ["'self'"]
+  }
+}));
+
+// Rate limiting
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: 'Too many login attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // General API rate limit
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configuration
 const ALLOWED_EMAILS = require('./config/emails.json').emails;
 const SESSIONS_FILE = './data/sessions.json';
 const CONTENT_FILE = './data/content.json';
 const LOGIN_LINKS_FILE = './data/login_links.json';
+const TOKEN_LENGTH = 32; // bytes for crypto tokens
+const MAX_CONTENT_LENGTH = 10000; // Max characters for content
+const SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LOGIN_LINK_EXPIRY = 15 * 60 * 1000; // 15 minutes
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -48,6 +84,25 @@ if (!fs.existsSync(LOGIN_LINKS_FILE)) {
 app.use(express.static('public'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(apiLimiter); // Apply general rate limiting
+
+// Auth middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token || !isValidToken(token)) {
+    return res.status(401).json({ error: 'Invalid or missing token' });
+  }
+  
+  const sessions = getSessions();
+  if (!sessions[token] || sessions[token].expires <= Date.now()) {
+    return res.status(401).json({ error: 'Token expired' });
+  }
+  
+  req.user = sessions[token];
+  next();
+}
 
 // Multer setup for image uploads
 const storage = multer.diskStorage({
@@ -91,7 +146,24 @@ function saveContent(content) {
 }
 
 function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(TOKEN_LENGTH).toString('hex');
+}
+
+function isValidToken(token) {
+  // Token should be a 64 character hex string (32 bytes)
+  return typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
+}
+
+function sanitizeContent(content) {
+  if (typeof content !== 'string') return '';
+  if (content.length > MAX_CONTENT_LENGTH) {
+    content = content.substring(0, MAX_CONTENT_LENGTH);
+  }
+  return sanitizeHtml(content, {
+    allowedTags: ['b', 'i', 'em', 'strong', 'p', 'br', 'a', 'ul', 'ol', 'li'],
+    allowedAttributes: { 'a': ['href'] },
+    disallowedTagsMode: 'discard'
+  });
 }
 
 function getLoginLinks() {
@@ -129,8 +201,12 @@ async function sendLoginEmail(email, token) {
 
 // Check if logged in
 app.get('/api/auth/check', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.json({ logged: false });
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token || !isValidToken(token)) {
+    return res.json({ logged: false });
+  }
   
   const sessions = getSessions();
   if (sessions[token] && sessions[token].expires > Date.now()) {
@@ -140,29 +216,37 @@ app.get('/api/auth/check', (req, res) => {
   }
 });
 
-// Login - request link
-app.post('/api/auth/request-link', async (req, res) => {
+// Login - request link (with rate limiting)
+app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
   const { email } = req.body;
   
-  if (!email || !ALLOWED_EMAILS.includes(email)) {
-    return res.status(403).json({ error: 'Email not authorized' });
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  
+  const trimmedEmail = email.trim().toLowerCase();
+  
+  if (!ALLOWED_EMAILS.includes(trimmedEmail)) {
+    // Don't reveal if email exists (security)
+    return res.json({ success: true, message: 'If email is authorized, link sent' });
   }
   
   const token = generateToken();
   const links = getLoginLinks();
   
-  // Store token with 15 minute expiration
+  // Store token with expiration
   links[token] = {
-    email,
-    expires: Date.now() + (15 * 60 * 1000) // 15 minutes
+    email: trimmedEmail,
+    expires: Date.now() + LOGIN_LINK_EXPIRY,
+    attempts: 0
   };
   saveLoginLinks(links);
   
   // Send email
-  const emailSent = await sendLoginEmail(email, token);
+  const emailSent = await sendLoginEmail(trimmedEmail, token);
   
   if (emailSent) {
-    res.json({ success: true, message: 'Login link sent to email' });
+    res.json({ success: true, message: 'If email is authorized, link sent' });
   } else {
     res.status(500).json({ error: 'Failed to send email' });
   }
@@ -172,8 +256,8 @@ app.post('/api/auth/request-link', async (req, res) => {
 app.get('/auth/verify', (req, res) => {
   const { token } = req.query;
   
-  if (!token) {
-    return res.status(400).send('No token provided');
+  if (!token || !isValidToken(token)) {
+    return res.status(400).send('Invalid token format');
   }
   
   const links = getLoginLinks();
@@ -188,7 +272,7 @@ app.get('/auth/verify', (req, res) => {
   const sessions = getSessions();
   sessions[sessionToken] = {
     email: linkData.email,
-    expires: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+    expires: Date.now() + SESSION_EXPIRY
   };
   saveSessions(sessions);
   
@@ -196,15 +280,24 @@ app.get('/auth/verify', (req, res) => {
   delete links[token];
   saveLoginLinks(links);
   
-  // Redirect to page with token in localStorage
+  // Use proper HTML escaping and CSP-safe approach
+  const encodedToken = sessionToken.replace(/'/g, "\\'").replace(/"/g, '&quot;');
   res.send(`
+    <!DOCTYPE html>
     <html>
+      <head>
+        <title>Login Successful</title>
+        <meta charset="UTF-8">
+      </head>
       <body>
         <h2>Login Successful!</h2>
-        <p>Logging you in...</p>
-        <script>
-          localStorage.setItem('cms-token', '${sessionToken}');
-          window.location.href = '/';
+        <p>Redirecting...</p>
+        <script nonce="${crypto.randomBytes(16).toString('base64')}">
+          (function() {
+            var token = '${encodedToken}';
+            localStorage.setItem('cms-token', token);
+            window.location.href = '/';
+          })();
         </script>
       </body>
     </html>
@@ -213,8 +306,10 @@ app.get('/auth/verify', (req, res) => {
 
 // Logout
 app.post('/api/auth/logout', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (token) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token && isValidToken(token)) {
     const sessions = getSessions();
     delete sessions[token];
     saveSessions(sessions);
@@ -222,22 +317,23 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// Save content
-app.post('/api/content/save', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  const sessions = getSessions();
-  
-  if (!token || !sessions[token] || sessions[token].expires <= Date.now()) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
+// Save content (with auth middleware)
+app.post('/api/content/save', authenticateToken, (req, res) => {
   const { selector, content } = req.body;
-  const data = getContent();
   
-  if (!data[selector]) {
-    data[selector] = [];
+  if (!selector || typeof selector !== 'string' || !content) {
+    return res.status(400).json({ error: 'Invalid selector or content' });
   }
-  data[selector] = content;
+  
+  // Validate selector format (prevent path traversal)
+  if (!/^[a-zA-Z0-9_-]+$/.test(selector)) {
+    return res.status(400).json({ error: 'Invalid selector format' });
+  }
+  
+  // Sanitize content to prevent XSS
+  const sanitized = sanitizeContent(content);
+  const data = getContent();
+  data[selector] = sanitized;
   saveContent(data);
   
   res.json({ success: true });
@@ -249,15 +345,8 @@ app.get('/api/content', (req, res) => {
   res.json(data);
 });
 
-// Upload image
-app.post('/api/upload/image', upload.single('image'), (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  const sessions = getSessions();
-  
-  if (!token || !sessions[token] || sessions[token].expires <= Date.now()) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
+// Upload image (with auth middleware)
+app.post('/api/upload/image', authenticateToken, upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -268,11 +357,21 @@ app.post('/api/upload/image', upload.single('image'), (req, res) => {
   });
 });
 
-// Main page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'FILE_TOO_LARGE') {
+      return res.status(413).json({ error: 'File too large' });
+    }
+    return res.status(400).json({ error: 'File upload error' });
+  }
+  
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {
   console.log(`CMS Server running on http://localhost:${PORT}`);
 });
+
