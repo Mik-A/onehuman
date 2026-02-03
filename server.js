@@ -174,6 +174,7 @@ async function sendLoginEmail(email, token) {
   const loginLink = `${process.env.BASE_URL || 'http://localhost:3000'}/auth/verify?token=${token}`;
   
   try {
+    console.log('[EMAIL] Preparing email for:', email);
     await transporter.sendMail({
       from: process.env.SMTP_FROM || 'noreply@onehuman.ai',
       to: email,
@@ -186,9 +187,11 @@ async function sendLoginEmail(email, token) {
         <p>If you didn't request this link, you can safely ignore this email.</p>
       `
     });
+    console.log('[EMAIL] Email sent successfully to:', email);
     return true;
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('[EMAIL] Failed to send email to:', email);
+    console.error('[EMAIL] Error details:', error.message);
     return false;
   }
 }
@@ -215,18 +218,25 @@ app.get('/api/auth/check', (req, res) => {
 // Login - request link (with rate limiting)
 app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
   const { email } = req.body;
+  const ip = req.ip || req.connection.remoteAddress;
+  
+  console.log(`[LOGIN] Request from IP ${ip}, email: ${email}`);
   
   if (!email || typeof email !== 'string') {
+    console.error('[LOGIN] Invalid email format received');
     return res.status(400).json({ error: 'Invalid email' });
   }
   
   const trimmedEmail = email.trim().toLowerCase();
+  console.log('[LOGIN] Validating email:', trimmedEmail);
   
   if (!ALLOWED_EMAILS.includes(trimmedEmail)) {
+    console.warn('[LOGIN] Email not authorized:', trimmedEmail);
     // Don't reveal if email exists (security)
     return res.json({ success: true, message: 'If email is authorized, link sent' });
   }
   
+  console.log('[LOGIN] Email authorized, generating token...');
   const token = generateToken();
   const links = getLoginLinks();
   
@@ -237,13 +247,17 @@ app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
     attempts: 0
   };
   saveLoginLinks(links);
+  console.log('[LOGIN] Token generated and stored');
   
   // Send email
+  console.log('[LOGIN] Sending email to:', trimmedEmail);
   const emailSent = await sendLoginEmail(trimmedEmail, token);
   
   if (emailSent) {
+    console.log('[LOGIN] Email sent successfully');
     res.json({ success: true, message: 'If email is authorized, link sent' });
   } else {
+    console.error('[LOGIN] Failed to send email');
     res.status(500).json({ error: 'Failed to send email' });
   }
 });
@@ -251,18 +265,25 @@ app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
 // Verify login link
 app.get('/auth/verify', (req, res) => {
   const { token } = req.query;
+  const ip = req.ip || req.connection.remoteAddress;
+  
+  console.log(`[AUTH] Verify request from IP ${ip}`);
   
   if (!token || !isValidToken(token)) {
+    console.error('[AUTH] Invalid token format');
     return res.status(400).send('Invalid token format');
   }
   
+  console.log('[AUTH] Token format valid, checking expiration...');
   const links = getLoginLinks();
   const linkData = links[token];
   
   if (!linkData || linkData.expires <= Date.now()) {
+    console.warn('[AUTH] Link expired or not found');
     return res.status(401).send('Link expired or invalid. <a href="/">Try logging in again</a>');
   }
   
+  console.log('[AUTH] Link valid, creating session for:', linkData.email);
   // Create session token
   const sessionToken = generateToken();
   const sessions = getSessions();
@@ -271,10 +292,12 @@ app.get('/auth/verify', (req, res) => {
     expires: Date.now() + SESSION_EXPIRY
   };
   saveSessions(sessions);
+  console.log('[AUTH] Session created for:', linkData.email);
   
   // Delete used link
   delete links[token];
   saveLoginLinks(links);
+  console.log('[AUTH] Login link consumed and deleted');
   
   // Use proper HTML escaping and CSP-safe approach
   const encodedToken = sessionToken.replace(/'/g, "\\'").replace(/"/g, '&quot;');

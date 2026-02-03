@@ -212,14 +212,19 @@
             const email = document.getElementById('email').value;
             const messageEl = document.getElementById('loginMessage');
             
+            console.log('[LOGIN] Form submitted with email:', email);
+            
             // Validate email format
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email)) {
+                console.error('[LOGIN] Invalid email format:', email);
                 messageEl.textContent = 'Please enter a valid email';
                 messageEl.style.display = 'block';
                 messageEl.style.color = 'red';
                 return;
             }
+            
+            console.log('[LOGIN] Valid email format, requesting login link...');
             
             try {
                 const response = await fetch('/api/auth/request-link', {
@@ -229,9 +234,12 @@
                     credentials: 'same-origin'
                 });
                 
+                console.log('[LOGIN] Response status:', response.status);
                 const result = await response.json();
+                console.log('[LOGIN] Response data:', result);
                 
                 if (response.ok) {
+                    console.log('[LOGIN] Success - link sent to email');
                     messageEl.textContent = 'Check your email for login link!';
                     messageEl.style.display = 'block';
                     messageEl.style.color = 'var(--accent)';
@@ -241,12 +249,13 @@
                         loginModal.classList.remove('active');
                     }, 3000);
                 } else {
+                    console.error('[LOGIN] Failed to send link:', result.error || 'Unknown error');
                     messageEl.textContent = 'Failed to send link. Try again later.';
                     messageEl.style.display = 'block';
                     messageEl.style.color = 'red';
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('[LOGIN] Network/request error:', error.message);
                 messageEl.textContent = 'Error sending link';
                 messageEl.style.display = 'block';
                 messageEl.style.color = 'red';
