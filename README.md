@@ -1,16 +1,29 @@
 # One Human CMS
 
-A simple, passwordless frontend CMS for editing website content without a database.
+A secure, passwordless frontend CMS with magic email links for authentication. No passwords, no database complexity.
 
 ## Features
 
-- ✅ **Passwordless Login** - Whitelist emails in `config/emails.json`
-- ✅ **Inline Editing** - Click any element to edit text
-- ✅ **Pen Icon on Hover** - Visual indication of editable content
-- ✅ **Image Upload** - Upload and manage images in `/public/images`
-- ✅ **No Database** - Content saved to `data/content.json`
-- ✅ **Token-based Sessions** - Sessions stored in `data/sessions.json`
-- ✅ **Simple & Lightweight** - No over-engineering, just works
+- ✅ **Passwordless Authentication** - Secure email login links (no passwords stored)
+- ✅ **Magic Email Links** - 15-minute verification links sent to email
+- ✅ **Email Whitelist** - Restrict access to authorized emails only
+- ✅ **Inline Editing** - Click elements to edit text content
+- ✅ **Image Upload** - Upload images with authentication
+- ✅ **File-based Storage** - JSON files (no database needed)
+- ✅ **Security Hardened** - Helmet.js, rate limiting, XSS prevention, input sanitization
+- ✅ **Lightweight** - Minimal dependencies, fast startup
+
+## Security Features
+
+- 🔒 **Helmet.js** - Sets security headers (CSP, X-Frame-Options, etc.)
+- 🔒 **Rate Limiting** - 5 login attempts per 15 min, 100 API/min
+- 🔒 **XSS Prevention** - Content sanitization with whitelist
+- 🔒 **Token Validation** - Strict hex format validation
+- 🔒 **Email Verification** - One-time use tokens
+- 🔒 **Session Expiry** - 7-day automatic logout
+- 🔒 **HTTPS Ready** - CSP compliant
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for detailed security information.
 
 ## Setup
 
@@ -19,18 +32,40 @@ A simple, passwordless frontend CMS for editing website content without a databa
 npm install
 ```
 
-### 2. Configure Allowed Emails
-Edit `config/emails.json`:
+### 2. Configure Emails
+Edit `config/emails.json` to whitelist authorized users:
 ```json
 {
   "emails": [
-    "your-email@example.com",
-    "another-email@example.com"
+    "mika@example.com",
+    "admin@example.com"
   ]
 }
 ```
 
-### 3. Start Server
+### 3. Configure Email (SMTP)
+Set environment variables in `.env`:
+```env
+# Email Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@onehuman.ai
+BASE_URL=http://localhost:3000
+
+# Server
+PORT=3000
+NODE_ENV=development
+```
+
+**For Gmail:**
+- Enable 2-factor authentication
+- Generate an [App Password](https://myaccount.google.com/apppasswords)
+- Use app password in `SMTP_PASS`
+
+### 4. Start Server
 ```bash
 npm start
 ```
@@ -39,65 +74,121 @@ Server runs on `http://localhost:3000`
 
 ## How to Use
 
-1. **Login**: Enter your whitelisted email address
-2. **Edit Content**: Click any text element with a dashed outline on hover
-3. **Upload Images**: Click the "Change" button on images
-4. **Save**: Changes auto-save to `data/content.json`
-5. **Logout**: Click logout button in toolbar
+1. **Login**: Click user icon (bottom-right) → Enter email → Check email for login link
+2. **Click Link**: Open link from email to create 7-day session
+3. **Edit Content**: On public site (`/`), click elements to edit (after login)
+4. **Upload Images**: Use image upload in CMS
+5. **Save**: Changes auto-save to `data/content.json`
+6. **Logout**: Click logout button
 
 ## File Structure
 
 ```
 .
-├── server.js              # Express server & API
-├── package.json           # Dependencies
+├── server.js                # Express server & API
+├── package.json             # Dependencies
+├── .env                     # Environment variables (create from template)
+├── SECURITY_AUDIT.md        # Security audit report
 ├── config/
-│   └── emails.json        # Whitelisted emails
+│   └── emails.json          # Whitelisted emails
 ├── data/
-│   ├── sessions.json      # Active sessions (auto-created)
-│   └── content.json       # Saved content (auto-created)
+│   ├── sessions.json        # Active sessions
+│   ├── login_links.json     # Login verification tokens
+│   └── content.json         # Saved content
 ├── public/
-│   ├── index.html         # CMS editor page
-│   ├── styles.css         # Stylesheet
-│   └── images/            # Uploaded images
-└── .env                   # Environment variables
+│   ├── index.html           # CMS dashboard
+│   ├── styles.css           # Stylesheet
+│   └── images/              # Uploaded images
+├── index.html               # Public website
+└── styles.css               # Public styles
 ```
 
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/login` - Login with email
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/check` - Check session
+- `POST /api/auth/request-link` - Request login link (rate limited)
+- `GET /auth/verify?token=...` - Verify login link, create session
+- `POST /api/auth/logout` - Logout (requires token)
+- `GET /api/auth/check` - Check if logged in
 
 ### Content
-- `GET /api/content` - Get all saved content
-- `POST /api/content/save` - Save text content
+- `GET /api/content` - Get all content
+- `POST /api/content/save` - Save content (requires auth)
 
 ### Images
-- `POST /api/upload/image` - Upload image
+- `POST /api/upload/image` - Upload image (requires auth)
 
 ## How It Works
 
-1. **Editable Elements**: Any element with `data-selector` attribute becomes editable
-2. **Pen Icon**: Appears on hover for each editable element
-3. **Modal Editor**: Click to open edit modal
-4. **Auto-save**: Changes save to file immediately
-5. **Images**: Stored in `/public/images`, referenced in `content.json`
+### Login Flow
+1. User clicks user icon and enters email
+2. Server validates email against whitelist
+3. Email sent with unique verification link
+4. Link contains secure token (valid 15 minutes)
+5. Clicking link creates 7-day session
+6. Session token stored in browser localStorage
+7. Session token sent with API requests (Authorization header)
 
-## Notes
+### Content Editing
+1. Authenticated user can view/edit content
+2. Content saved to `data/content.json`
+3. All content sanitized to prevent XSS
+4. Changes immediately available to public site
 
-- No database required - everything stored as JSON
-- Sessions last 7 days
-- Images stored in `/public/images` folder
-- Edit any content by clicking elements
-- Token stored in browser localStorage
+### Rate Limiting
+- Login: 5 attempts per 15 minutes per IP
+- API: 100 requests per minute per IP
+- Prevents brute force and DDoS attacks
 
-## Production Notes
+## Environment Variables
 
-For production:
-1. Set `NODE_ENV=production`
-2. Add proper email whitelist
-3. Use environment variables for sensitive data
-4. Consider adding SSL/HTTPS
-5. Implement rate limiting
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SMTP_HOST` | Yes | Email provider SMTP server |
+| `SMTP_PORT` | Yes | SMTP port (usually 587 or 465) |
+| `SMTP_USER` | Yes | Email address |
+| `SMTP_PASS` | Yes | Email password or app password |
+| `SMTP_FROM` | No | From address (default: noreply@onehuman.ai) |
+| `BASE_URL` | No | App URL for email links (default: http://localhost:3000) |
+| `PORT` | No | Server port (default: 3000) |
+| `NODE_ENV` | No | development or production |
+
+## Deployment
+
+### Before Production
+1. ✅ Set `NODE_ENV=production`
+2. ✅ Configure SMTP with production email provider
+3. ✅ Set `BASE_URL` to your domain (HTTPS)
+4. ✅ Use strong `SMTP_PASS` (use environment variables, never commit)
+5. ✅ Enable HTTPS/SSL certificates
+6. ✅ Consider database for sessions/links (instead of JSON files)
+7. ✅ Set up monitoring and logging
+
+### Recommended Providers
+- **Email**: SendGrid, AWS SES, Mailgun, Gmail (with app password)
+- **Hosting**: Heroku, Railway, Vercel, AWS, DigitalOcean
+- **Database**: PostgreSQL, MongoDB (future enhancement)
+
+## Known Limitations
+
+- Sessions stored in JSON (use database in production)
+- Login links stored in JSON (use database in production)
+- No user profiles or permissions (all authenticated users have same access)
+- Max content length: 10,000 characters per field
+
+## Future Enhancements
+
+- [ ] PostgreSQL/MongoDB support
+- [ ] Multi-user roles and permissions
+- [ ] Content versioning/history
+- [ ] 2-factor authentication
+- [ ] IP whitelist option
+- [ ] Webhook notifications
+
+## Support
+
+For issues or questions, see SECURITY_AUDIT.md for security concerns.
+
+## License
+
+MIT
