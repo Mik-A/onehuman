@@ -41,7 +41,7 @@
             transition: outline 0.2s;
         }
 
-        .cms-editable:hover {
+        body.cms-logged-in .cms-editable:hover {
             outline: 2px dashed #c54b2a;
         }
 
@@ -64,7 +64,7 @@
             z-index: 100;
         }
 
-        .cms-editable:hover .cms-edit-icon {
+        body.cms-logged-in .cms-editable:hover .cms-edit-icon {
             display: flex;
         }
 
@@ -84,7 +84,7 @@
             z-index: 100;
         }
 
-        .cms-image-container:hover .cms-image-upload {
+        body.cms-logged-in .cms-image-container:hover .cms-image-upload {
             display: block;
         }
 
@@ -503,8 +503,9 @@
         }
 
         function cmsEnableEditing() {
+            document.body.classList.add('cms-logged-in');
             document.getElementById('cmsToolbar').style.display = 'flex';
-            
+
             document.querySelectorAll('.cms-editable').forEach(el => {
                 el.style.cursor = 'pointer';
                 el.addEventListener('click', (e) => {
@@ -653,6 +654,40 @@
         document.getElementById('editContent').addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') cmsSaveContent();
         });
+
+        // User icon auto-hide after 10 seconds
+        (function() {
+            const icon = document.getElementById('userIconBtn');
+            let hideTimer = null;
+
+            function startHideTimer() {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => {
+                    icon.classList.add('hidden-offscreen');
+                }, 10000);
+            }
+
+            // Start the initial timer
+            startHideTimer();
+
+            // Show icon when cursor enters the bottom-right corner (within 100px)
+            document.addEventListener('mousemove', (e) => {
+                const nearBottom = e.clientY > window.innerHeight - 100;
+                const nearRight = e.clientX > window.innerWidth - 100;
+
+                if (nearBottom && nearRight) {
+                    icon.classList.remove('hidden-offscreen');
+                    startHideTimer();
+                }
+            });
+
+            // Reset timer when icon is clicked (keep it visible while interacting)
+            icon.addEventListener('click', () => {
+                clearTimeout(hideTimer);
+                icon.classList.remove('hidden-offscreen');
+                startHideTimer();
+            });
+        })();
 
         // Login Modal Handler
         const userIconBtn = document.getElementById('userIconBtn');

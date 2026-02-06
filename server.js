@@ -176,7 +176,16 @@ function saveLoginLinks(links) {
 
 async function sendLoginEmail(email, token) {
   const loginLink = `${process.env.BASE_URL || 'http://localhost:3000'}/auth/verify?token=${token}`;
-  
+
+  // In development mode, skip actual email and log the link to console
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[EMAIL] ===== DEV MODE - Login Link =====');
+    console.log(`[EMAIL] Email: ${email}`);
+    console.log(`[EMAIL] Link: ${loginLink}`);
+    console.log('[EMAIL] ===================================');
+    return true;
+  }
+
   try {
     console.log('[EMAIL] Preparing email for:', email);
     await transporter.sendMail({

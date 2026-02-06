@@ -302,8 +302,12 @@ footer p {
     align-items: center;
     justify-content: center;
     z-index: 999;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.8s ease, box-shadow 0.2s, bottom 0.8s ease;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.user-icon.hidden-offscreen {
+    bottom: -60px;
 }
 
 .user-icon:hover {
