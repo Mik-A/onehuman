@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nScope CMS edit UI to logged-in users, auto-hide user icon with corner reveal\n\n- Hover borders and edit icons on .cms-editable only show when authenticated\n- User icon slides off-screen after 10s, reappears on bottom-right cursor\n- Dev mode skips SMTP and logs login link to console \\(fixes 500 on login\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(node -e:*)",
+      "Bash(node -c:*)",
+      "Bash(curl:*)",
+      "Bash(tasklist:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <!-- Gradient for crown -->
+    <linearGradient id="crownGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="50%" stop-color="#FFA500"/>
+      <stop offset="100%" stop-color="#FF8C00"/>
+    </linearGradient>
+    
+    <!-- Subtle shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#1a1a1a" flood-opacity="0.15"/>
+    </filter>
+    
+    <!-- Chaos particles -->
+    <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B35"/>
+      <stop offset="100%" stop-color="#FF6B35" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="180" fill="#faf9f7"/>
+  
+  <!-- Chaos sparks around -->
+  <circle cx="85" cy="120" r="8" fill="#FFD700" opacity="0.8"/>
+  <circle cx="320" cy="95" r="6" fill="#FF6B35" opacity="0.7"/>
+  <circle cx="340" cy="180" r="10" fill="#FFD700" opacity="0.6"/>
+  <circle cx="65" cy="250" r="7" fill="#FF6B35" opacity="0.8"/>
+  <circle cx="330" cy="290" r="9" fill="#FFD700" opacity="0.7"/>
+  <circle cx="100" cy="320" r="5" fill="#FF6B35" opacity="0.6"/>
+  
+  <!-- Small floating squares (chaos) -->
+  <rect x="70" y="170" width="12" height="12" fill="#c54b2a" opacity="0.6" transform="rotate(25 76 176)"/>
+  <rect x="310" y="230" width="14" height="14" fill="#c54b2a" opacity="0.5" transform="rotate(-15 317 237)"/>
+  <rect x="290" y="130" width="10" height="10" fill="#1a1a1a" opacity="0.3" transform="rotate(45 295 135)"/>
+  
+  <!-- Body - main rounded rectangle -->
+  <rect x="120" y="180" width="160" height="140" rx="24" fill="#1a1a1a" filter="url(#shadow)"/>
+  
+  <!-- Body highlight -->
+  <rect x="130" y="190" width="140" height="50" rx="12" fill="#2d2d2d"/>
+  
+  <!-- Crown - tilted for chaos energy -->
+  <g transform="translate(200, 130) rotate(12)">
+    <!-- Crown base -->
+    <path d="M-70 40 L-70 0 L-45 25 L-20 -15 L0 20 L20 -15 L45 25 L70 0 L70 40 Z" 
+          fill="url(#crownGold)" filter="url(#shadow)"/>
+    <!-- Crown jewels -->
+    <circle cx="-45" cy="18" r="6" fill="#c54b2a"/>
+    <circle cx="0" cy="5" r="8" fill="#c54b2a"/>
+    <circle cx="45" cy="18" r="6" fill="#c54b2a"/>
+    <!-- Crown band -->
+    <rect x="-70" y="30" width="140" height="12" fill="#FFA500"/>
+  </g>
+  
+  <!-- Face -->
+  <!-- Left eye - bigger, excited -->
+  <ellipse cx="160" cy="230" rx="22" ry="24" fill="#faf9f7"/>
+  <circle cx="165" cy="232" r="12" fill="#1a1a1a"/>
+  <circle cx="169" cy="228" r="4" fill="#faf9f7"/>
+  
+  <!-- Right eye - slightly smaller, adds chaos -->
+  <ellipse cx="240" cy="225" rx="18" ry="20" fill="#faf9f7"/>
+  <circle cx="244" cy="227" r="10" fill="#1a1a1a"/>
+  <circle cx="247" cy="224" r="3" fill="#faf9f7"/>
+  
+  <!-- Wide grin -->
+  <path d="M145 270 Q200 310 255 270" stroke="#faf9f7" stroke-width="6" fill="none" stroke-linecap="round"/>
+  
+  <!-- Teeth showing in grin -->
+  <path d="M160 275 Q200 295 240 275" fill="#faf9f7"/>
+  
+  <!-- Arms spread wide - "come at me" gesture -->
+  <!-- Left arm -->
+  <g transform="translate(120, 220) rotate(-35)">
+    <rect x="-80" y="-12" width="80" height="24" rx="12" fill="#1a1a1a"/>
+    <!-- Hand -->
+    <circle cx="-85" cy="0" r="18" fill="#1a1a1a"/>
+    <!-- Fingers spread -->
+    <rect x="-110" y="-8" width="20" height="8" rx="4" fill="#1a1a1a" transform="rotate(-20 -100 -4)"/>
+    <rect x="-112" y="0" width="22" height="8" rx="4" fill="#1a1a1a"/>
+    <rect x="-110" y="8" width="20" height="8" rx="4" fill="#1a1a1a" transform="rotate(20 -100 12)"/>
+  </g>
+  
+  <!-- Right arm -->
+  <g transform="translate(280, 220) rotate(35)">
+    <rect x="0" y="-12" width="80" height="24" rx="12" fill="#1a1a1a"/>
+    <!-- Hand -->
+    <circle cx="85" cy="0" r="18" fill="#1a1a1a"/>
+    <!-- Fingers spread -->
+    <rect x="90" y="-8" width="20" height="8" rx="4" fill="#1a1a1a" transform="rotate(20 100 -4)"/>
+    <rect x="90" y="0" width="22" height="8" rx="4" fill="#1a1a1a"/>
+    <rect x="90" y="8" width="20" height="8" rx="4" fill="#1a1a1a" transform="rotate(-20 100 12)"/>
+  </g>
+  
+  <!-- Legs -->
+  <rect x="145" y="310" width="30" height="50" rx="10" fill="#1a1a1a"/>
+  <rect x="225" y="310" width="30" height="50" rx="10" fill="#1a1a1a"/>
+  
+  <!-- Feet -->
+  <ellipse cx="160" cy="365" rx="22" ry="10" fill="#1a1a1a"/>
+  <ellipse cx="240" cy="365" rx="22" ry="10" fill="#1a1a1a"/>
+</svg>
