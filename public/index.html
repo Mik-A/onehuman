@@ -9,7 +9,7 @@
         /* CMS Specific Styles */
         .cms-toolbar {
             position: fixed;
-            top: 80px;
+            top: 20px;
             right: 20px;
             background: rgba(0, 0, 0, 0.9);
             color: #faf9f7;
@@ -194,7 +194,7 @@
 
         @media (max-width: 700px) {
             .cms-toolbar {
-                top: 100px;
+                top: 60px;
                 right: 10px;
                 padding: 12px 15px;
                 flex-direction: column;
@@ -218,13 +218,24 @@
 
     <div class="cms-status" id="cmsStatus"></div>
 
-    <!-- Login Modal -->
+    <!-- Login / Account Modal -->
     <div class="cms-modal" id="loginModal">
         <div class="cms-modal-content">
-            <h2>Login</h2>
-            <input type="email" id="loginEmail" placeholder="Enter your email" />
-            <div class="cms-modal-buttons">
-                <button class="cms-save" id="cmsLoginBtn">Login</button>
+            <div id="loginView">
+                <h2>Login</h2>
+                <input type="email" id="loginEmail" placeholder="Enter your email" />
+                <div class="cms-modal-buttons">
+                    <button class="cms-save" id="cmsLoginBtn">Login</button>
+                </div>
+                <p id="devLoginLink" style="display:none; margin-top:12px; text-align:center; font-size:0.8rem;">
+                    <a href="/auth/dev-login" style="color:var(--grey);">Dev Login (skip email)</a>
+                </p>
+            </div>
+            <div id="loggedInView" style="display:none;">
+                <h2>Logged in as admin</h2>
+                <div class="cms-modal-buttons">
+                    <button class="cms-cancel" id="cmsModalLogoutBtn">Logout</button>
+                </div>
             </div>
         </div>
     </div>
@@ -253,7 +264,10 @@
         </div>
     </div>
 
-    <nav class="product-nav">
+    <button class="nav-hamburger" id="navHamburger">&#9776;</button>
+    <div class="nav-overlay" id="navOverlay"></div>
+
+    <nav class="product-nav" id="productNav">
         <a href="#emperor">Yolo Emperor</a>
         <a href="#yolo">Yolo Agent</a>
         <a href="#responsible">The Responsible One</a>
@@ -409,22 +423,6 @@
         </svg>
     </button>
 
-    <!-- Login Modal -->
-    <div class="modal" id="loginModal">
-        <div class="modal-content">
-            <button class="modal-close" id="closeModalBtn">&times;</button>
-            <h2>Login</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
-                <button type="submit" class="btn-submit">Send Login Link</button>
-                <p class="login-message" id="loginMessage" style="display: none; margin-top: 1rem; text-align: center; color: var(--accent);"></p>
-            </form>
-        </div>
-    </div>
-
     <script>
         let token = localStorage.getItem('cms-token');
         let currentEditElement = null;
@@ -459,24 +457,33 @@
             });
         }
 
-        // Check auth on load
-        window.addEventListener('load', async () => {
+        // Show dev login link if server is in dev mode
+        fetch('/api/dev-mode').then(r => {
+            if (r.ok) {
+                const link = document.getElementById('devLoginLink');
+                if (link) link.style.display = '';
+            }
+        }).catch(() => {});
+
+        // Check auth on DOM ready (not window.load — that waits for images)
+        document.addEventListener('DOMContentLoaded', async () => {
             setupEventListeners();
-            
+            console.log('[CMS] Token in localStorage:', token ? 'yes' : 'no');
+
             if (token) {
                 const check = await fetch('/api/auth/check', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const result = await check.json();
-                
+                console.log('[CMS] Auth check result:', result);
+
                 if (result.logged) {
                     cmsEnableEditing();
                 } else {
+                    console.log('[CMS] Session invalid, clearing token');
                     token = null;
                     localStorage.removeItem('cms-token');
                 }
-            } else {
-                // Not logged in - don't auto-open modal
             }
 
             await cmsLoadContent();
@@ -497,22 +504,27 @@
                 alert('Login link sent to your email! Check your inbox.');
                 document.getElementById('loginEmail').value = '';
                 document.getElementById('loginModal').classList.remove('active');
+            } else if (result.authorized === false) {
+                alert('This email is not on the access list. Contact the site owner to request access.');
             } else {
                 alert(result.error || 'Failed to send login link');
             }
         }
 
         function cmsEnableEditing() {
+            console.log('[CMS] Enabling editing mode');
             document.body.classList.add('cms-logged-in');
             document.getElementById('cmsToolbar').style.display = 'flex';
 
-            document.querySelectorAll('.cms-editable').forEach(el => {
+            const editables = document.querySelectorAll('.cms-editable');
+            console.log('[CMS] Found', editables.length, 'editable elements');
+            editables.forEach(el => {
                 el.style.cursor = 'pointer';
                 el.addEventListener('click', (e) => {
                     if (el.tagName === 'IMG') {
-                        // Image click handled separately
                         return;
                     }
+                    e.preventDefault();
                     cmsOpenEditModal(el);
                 });
             });
@@ -549,7 +561,8 @@
             });
 
             if (response.ok) {
-                currentEditElement.textContent = sanitized;
+                const result = await response.json();
+                currentEditElement.textContent = result.content;
                 cmsShowStatus('Saved!');
                 cmsCloseEditModal();
             } else {
@@ -632,15 +645,13 @@
         }
 
         async function cmsLogout() {
-            if (confirm('Logout?')) {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                localStorage.removeItem('cms-token');
-                token = null;
-                location.reload();
-            }
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            localStorage.removeItem('cms-token');
+            token = null;
+            location.reload();
         }
 
         function cmsShowStatus(message) {
@@ -689,41 +700,69 @@
             });
         })();
 
-        // Login Modal Handler
-        const userIconBtn = document.getElementById('userIconBtn');
-        const loginModal = document.getElementById('loginModal');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        const loginForm = document.getElementById('loginForm');
+        // Sidebar hamburger toggle (mobile)
+        (function() {
+            const hamburger = document.getElementById('navHamburger');
+            const nav = document.getElementById('productNav');
+            const overlay = document.getElementById('navOverlay');
 
-        if (userIconBtn && loginModal) {
-            // Open modal when clicking user icon
-            userIconBtn.addEventListener('click', () => {
-                loginModal.classList.toggle('active');
-            });
+            function openNav() {
+                nav.classList.add('open');
+                overlay.classList.add('active');
+            }
 
-            // Close modal when clicking close button
-            closeModalBtn.addEventListener('click', () => {
-                loginModal.classList.remove('active');
-            });
+            function closeNav() {
+                nav.classList.remove('open');
+                overlay.classList.remove('active');
+            }
 
-            // Close modal when clicking outside the modal content
-            window.addEventListener('click', (event) => {
-                if (event.target === loginModal) {
-                    loginModal.classList.remove('active');
+            hamburger.addEventListener('click', () => {
+                if (nav.classList.contains('open')) {
+                    closeNav();
+                } else {
+                    openNav();
                 }
             });
 
-            // Handle form submission
-            loginForm.addEventListener('submit', (event) => {
-                event.preventDefault();
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                console.log('Login attempt:', { email, password });
-                // Add your login logic here
-                loginModal.classList.remove('active');
-                loginForm.reset();
+            overlay.addEventListener('click', closeNav);
+
+            // Close sidebar when a nav link is clicked (mobile)
+            nav.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', closeNav);
             });
-        }
+        })();
+
+        // User icon — opens modal, shows login or logged-in view
+        (function() {
+            const icon = document.getElementById('userIconBtn');
+            const modal = document.getElementById('loginModal');
+            const loginView = document.getElementById('loginView');
+            const loggedInView = document.getElementById('loggedInView');
+            const modalLogoutBtn = document.getElementById('cmsModalLogoutBtn');
+
+            icon.addEventListener('click', () => {
+                if (token) {
+                    loginView.style.display = 'none';
+                    loggedInView.style.display = '';
+                } else {
+                    loginView.style.display = '';
+                    loggedInView.style.display = 'none';
+                }
+                modal.classList.add('active');
+            });
+
+            modalLogoutBtn.addEventListener('click', () => {
+                modal.classList.remove('active');
+                cmsLogout();
+            });
+
+            // Close on backdrop click
+            window.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        })();
     </script>
 </body>
 </html>

@@ -245,8 +245,7 @@ app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
   
   if (!ALLOWED_EMAILS.includes(trimmedEmail)) {
     console.warn('[LOGIN] Email not authorized:', trimmedEmail);
-    // Don't reveal if email exists (security)
-    return res.json({ success: true, message: 'If email is authorized, link sent' });
+    return res.json({ success: false, authorized: false, message: 'Email not on the access list. Contact the site owner to request access.' });
   }
   
   console.log('[LOGIN] Email authorized, generating token...');
@@ -336,6 +335,35 @@ app.get('/auth/verify', (req, res) => {
   `);
 });
 
+// Dev mode helpers (dev only)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/dev-mode', (req, res) => res.json({ dev: true }));
+  app.get('/auth/dev-login', (req, res) => {
+    const email = ALLOWED_EMAILS[0] || 'dev@localhost';
+    const sessionToken = generateToken();
+    const sessions = getSessions();
+    sessions[sessionToken] = {
+      email,
+      expires: Date.now() + SESSION_EXPIRY
+    };
+    saveSessions(sessions);
+    console.log('[AUTH] Dev login session created for:', email);
+
+    const encodedToken = sessionToken.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    res.send(`
+      <!DOCTYPE html>
+      <html><head><meta charset="UTF-8"><title>Dev Login</title></head>
+      <body>
+        <script>
+          localStorage.setItem('cms-token', '${encodedToken}');
+          window.location.href = '/';
+        </script>
+      </body></html>
+    `);
+  });
+  console.log('[INIT] Dev login available at /auth/dev-login');
+}
+
 // Logout
 app.post('/api/auth/logout', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -367,8 +395,8 @@ app.post('/api/content/save', authenticateToken, (req, res) => {
   const data = getContent();
   data[selector] = sanitized;
   saveContent(data);
-  
-  res.json({ success: true });
+
+  res.json({ success: true, content: sanitized });
 });
 
 // Get content
