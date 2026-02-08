@@ -1,139 +1,120 @@
-(function () {
-    'use strict';
-
-    var token = localStorage.getItem('cms-token');
-    var currentEditElement = null;
-    var currentImageSelector = null;
+(() => {
+    let token = localStorage.getItem('cms-token');
+    let currentEditElement = null;
+    let currentImageSelector = null;
 
     // ── Inject CMS HTML ──────────────────────────────────────────
 
-    function injectCmsHtml() {
-        // Toolbar
-        var toolbar = document.createElement('div');
+    const injectCmsHtml = () => {
+        const toolbar = document.createElement('div');
         toolbar.className = 'cms-toolbar';
         toolbar.id = 'cmsToolbar';
-        toolbar.innerHTML =
-            '<span>Editing Mode ON</span>' +
-            '<button id="cmsSaveAllBtn">Save All</button>' +
-            '<button id="cmsLogoutBtn">Logout</button>';
+        toolbar.innerHTML = `
+            <span>Editing Mode ON</span>
+            <button id="cmsSaveAllBtn">Save All</button>
+            <button id="cmsLogoutBtn">Logout</button>`;
 
-        // Status indicator
-        var status = document.createElement('div');
+        const status = document.createElement('div');
         status.className = 'cms-status';
         status.id = 'cmsStatus';
 
-        // Login modal
-        var loginModal = document.createElement('div');
+        const loginModal = document.createElement('div');
         loginModal.className = 'cms-modal';
         loginModal.id = 'loginModal';
-        loginModal.innerHTML =
-            '<div class="cms-modal-content">' +
-                '<div id="loginView">' +
-                    '<h2>Login</h2>' +
-                    '<input type="email" id="loginEmail" placeholder="Enter your email" />' +
-                    '<div class="cms-modal-buttons">' +
-                        '<button class="cms-save" id="cmsLoginBtn">Login</button>' +
-                    '</div>' +
-                    '<p id="devLoginLink" class="dev-login-link hidden">' +
-                        '<a href="/auth/dev-login">Dev Login (skip email)</a>' +
-                    '</p>' +
-                '</div>' +
-                '<div id="loggedInView" class="hidden">' +
-                    '<h2>Logged in as admin</h2>' +
-                    '<div class="cms-modal-buttons">' +
-                        '<button class="cms-cancel" id="cmsModalLogoutBtn">Logout</button>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
+        loginModal.innerHTML = `
+            <div class="cms-modal-content">
+                <div id="loginView">
+                    <h2>Login</h2>
+                    <input type="email" id="loginEmail" placeholder="Enter your email" />
+                    <div class="cms-modal-buttons">
+                        <button class="cms-save" id="cmsLoginBtn">Login</button>
+                    </div>
+                    <p id="devLoginLink" class="dev-login-link hidden">
+                        <a href="/auth/dev-login">Dev Login (skip email)</a>
+                    </p>
+                </div>
+                <div id="loggedInView" class="hidden">
+                    <h2>Logged in as admin</h2>
+                    <div class="cms-modal-buttons">
+                        <button class="cms-cancel" id="cmsModalLogoutBtn">Logout</button>
+                    </div>
+                </div>
+            </div>`;
 
-        // Edit modal
-        var editModal = document.createElement('div');
+        const editModal = document.createElement('div');
         editModal.className = 'cms-modal';
         editModal.id = 'editModal';
-        editModal.innerHTML =
-            '<div class="cms-modal-content">' +
-                '<h2 id="editModalTitle">Edit Content</h2>' +
-                '<textarea id="editContent"></textarea>' +
-                '<div class="cms-modal-buttons">' +
-                    '<button class="cms-cancel" id="cmsCloseEditModalBtn">Cancel</button>' +
-                    '<button class="cms-save" id="cmsSaveContentBtn">Save</button>' +
-                '</div>' +
-            '</div>';
+        editModal.innerHTML = `
+            <div class="cms-modal-content">
+                <h2 id="editModalTitle">Edit Content</h2>
+                <textarea id="editContent"></textarea>
+                <div class="cms-modal-buttons">
+                    <button class="cms-cancel" id="cmsCloseEditModalBtn">Cancel</button>
+                    <button class="cms-save" id="cmsSaveContentBtn">Save</button>
+                </div>
+            </div>`;
 
-        // Image modal
-        var imageModal = document.createElement('div');
+        const imageModal = document.createElement('div');
         imageModal.className = 'cms-modal';
         imageModal.id = 'imageModal';
-        imageModal.innerHTML =
-            '<div class="cms-modal-content">' +
-                '<h2>Upload Image</h2>' +
-                '<input type="file" id="imageFile" accept="image/*" />' +
-                '<div class="cms-modal-buttons">' +
-                    '<button class="cms-cancel" id="cmsCloseImageModalBtn">Cancel</button>' +
-                    '<button class="cms-save" id="cmsUploadImageBtn">Upload</button>' +
-                '</div>' +
-            '</div>';
+        imageModal.innerHTML = `
+            <div class="cms-modal-content">
+                <h2>Upload Image</h2>
+                <input type="file" id="imageFile" accept="image/*" />
+                <div class="cms-modal-buttons">
+                    <button class="cms-cancel" id="cmsCloseImageModalBtn">Cancel</button>
+                    <button class="cms-save" id="cmsUploadImageBtn">Upload</button>
+                </div>
+            </div>`;
 
-        // User icon button
-        var userIcon = document.createElement('button');
+        const userIcon = document.createElement('button');
         userIcon.className = 'user-icon';
         userIcon.id = 'userIconBtn';
         userIcon.setAttribute('aria-label', 'Login');
-        userIcon.innerHTML =
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-                '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>' +
-                '<circle cx="12" cy="7" r="4"></circle>' +
-            '</svg>';
+        userIcon.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>`;
 
-        // Insert into body
-        document.body.appendChild(toolbar);
-        document.body.appendChild(status);
-        document.body.appendChild(loginModal);
-        document.body.appendChild(editModal);
-        document.body.appendChild(imageModal);
-        document.body.appendChild(userIcon);
-    }
+        document.body.append(toolbar, status, loginModal, editModal, imageModal, userIcon);
+    };
 
     // ── Event listeners ──────────────────────────────────────────
 
-    function setupEventListeners() {
-        var saveAllBtn = document.getElementById('cmsSaveAllBtn');
-        var logoutBtn = document.getElementById('cmsLogoutBtn');
-        var loginBtn = document.getElementById('cmsLoginBtn');
-        var closeEditBtn = document.getElementById('cmsCloseEditModalBtn');
-        var saveContentBtn = document.getElementById('cmsSaveContentBtn');
-        var closeImageBtn = document.getElementById('cmsCloseImageModalBtn');
-        var uploadImageBtn = document.getElementById('cmsUploadImageBtn');
-        var openImageBtns = document.querySelectorAll('.cms-open-image-btn');
+    const setupEventListeners = () => {
+        const bindings = {
+            cmsSaveAllBtn: cmsSaveAll,
+            cmsLogoutBtn: cmsLogout,
+            cmsLoginBtn: cmsLogin,
+            cmsCloseEditModalBtn: cmsCloseEditModal,
+            cmsSaveContentBtn: cmsSaveContent,
+            cmsCloseImageModalBtn: cmsCloseImageModal,
+            cmsUploadImageBtn: cmsUploadImage,
+        };
 
-        if (saveAllBtn) saveAllBtn.addEventListener('click', cmsSaveAll);
-        if (logoutBtn) logoutBtn.addEventListener('click', cmsLogout);
-        if (loginBtn) loginBtn.addEventListener('click', cmsLogin);
-        if (closeEditBtn) closeEditBtn.addEventListener('click', cmsCloseEditModal);
-        if (saveContentBtn) saveContentBtn.addEventListener('click', cmsSaveContent);
-        if (closeImageBtn) closeImageBtn.addEventListener('click', cmsCloseImageModal);
-        if (uploadImageBtn) uploadImageBtn.addEventListener('click', cmsUploadImage);
+        for (const [id, handler] of Object.entries(bindings)) {
+            document.getElementById(id)?.addEventListener('click', handler);
+        }
 
-        openImageBtns.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                cmsOpenImageModal(btn.getAttribute('data-selector'));
-            });
+        document.querySelectorAll('.cms-open-image-btn').forEach(btn => {
+            btn.addEventListener('click', () => cmsOpenImageModal(btn.dataset.selector));
         });
-    }
+    };
 
     // ── CMS functions ────────────────────────────────────────────
 
-    async function cmsLogin() {
-        var email = document.getElementById('loginEmail').value.trim();
+    const cmsLogin = async () => {
+        const email = document.getElementById('loginEmail').value.trim();
         if (!email) return alert('Please enter email');
 
-        var response = await fetch('/api/auth/request-link', {
+        const response = await fetch('/api/auth/request-link', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email })
+            body: JSON.stringify({ email })
         });
 
-        var result = await response.json();
+        const result = await response.json();
         if (result.success) {
             alert('Login link sent to your email! Check your inbox.');
             document.getElementById('loginEmail').value = '';
@@ -143,103 +124,100 @@
         } else {
             alert(result.error || 'Failed to send login link');
         }
-    }
+    };
 
-    function cmsEnableEditing() {
+    const cmsEnableEditing = () => {
         console.log('[CMS] Enabling editing mode');
         document.body.classList.add('cms-logged-in');
-        var toolbar = document.getElementById('cmsToolbar');
+        const toolbar = document.getElementById('cmsToolbar');
         if (toolbar) toolbar.style.display = 'flex';
 
-        var editables = document.querySelectorAll('.cms-editable');
+        const editables = document.querySelectorAll('.cms-editable');
         console.log('[CMS] Found', editables.length, 'editable elements');
-        editables.forEach(function (el) {
-            el.addEventListener('click', function (e) {
+        editables.forEach(el => {
+            el.addEventListener('click', e => {
                 if (el.tagName === 'IMG') return;
                 e.preventDefault();
                 cmsOpenEditModal(el);
             });
         });
-    }
+    };
 
-    function cmsOpenEditModal(el) {
+    const cmsOpenEditModal = (el) => {
         currentEditElement = el;
-        var selector = el.dataset.selector;
-        document.getElementById('editModalTitle').textContent = 'Edit: ' + selector;
+        const { selector } = el.dataset;
+        document.getElementById('editModalTitle').textContent = `Edit: ${selector}`;
         document.getElementById('editContent').value = el.textContent;
         document.getElementById('editModal').classList.add('active');
         document.getElementById('editContent').focus();
-    }
+    };
 
-    function cmsCloseEditModal() {
+    const cmsCloseEditModal = () => {
         document.getElementById('editModal').classList.remove('active');
         currentEditElement = null;
-    }
+    };
 
-    async function cmsSaveContent() {
+    const cmsSaveContent = async () => {
         if (!currentEditElement) return;
 
-        var selector = currentEditElement.dataset.selector;
-        var content = document.getElementById('editContent').value;
+        const { selector } = currentEditElement.dataset;
+        const content = document.getElementById('editContent').value;
 
-        var response = await fetch('/api/content/save', {
+        const response = await fetch('/api/content/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token
+                Authorization: `Bearer ${token}`
             },
-            body: JSON.stringify({ selector: selector, content: content })
+            body: JSON.stringify({ selector, content })
         });
 
         if (response.ok) {
-            var result = await response.json();
+            const result = await response.json();
             currentEditElement.textContent = result.content;
             cmsShowStatus('Saved!');
             cmsCloseEditModal();
         } else {
             alert('Save failed');
         }
-    }
+    };
 
-    function cmsOpenImageModal(selector) {
+    const cmsOpenImageModal = (selector) => {
         currentImageSelector = selector;
         document.getElementById('imageModal').classList.add('active');
         document.getElementById('imageFile').value = '';
-    }
+    };
 
-    function cmsCloseImageModal() {
+    const cmsCloseImageModal = () => {
         document.getElementById('imageModal').classList.remove('active');
         currentImageSelector = null;
-    }
+    };
 
-    async function cmsUploadImage() {
-        var file = document.getElementById('imageFile').files[0];
+    const cmsUploadImage = async () => {
+        const file = document.getElementById('imageFile').files[0];
         if (!file) return alert('Please select an image');
 
-        var formData = new FormData();
+        const formData = new FormData();
         formData.append('image', file);
 
-        var response = await fetch('/api/upload/image', {
+        const response = await fetch('/api/upload/image', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token },
+            headers: { Authorization: `Bearer ${token}` },
             body: formData
         });
 
         if (response.ok) {
-            var result = await response.json();
-            var imgEl = document.querySelector('[data-selector="' + currentImageSelector + '"]');
+            const result = await response.json();
+            const imgEl = document.querySelector(`[data-selector="${currentImageSelector}"]`);
             if (imgEl) imgEl.src = result.url;
 
             await fetch('/api/content/save', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token
+                    Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    selector: currentImageSelector,
-                    content: result.url
-                })
+                body: JSON.stringify({ selector: currentImageSelector, content: result.url })
             });
 
             cmsShowStatus('Image uploaded!');
@@ -247,172 +225,137 @@
         } else {
             alert('Upload failed');
         }
-    }
+    };
 
-    async function cmsLoadContent() {
-        var response = await fetch('/api/content');
-        var content = await response.json();
+    const cmsLoadContent = async () => {
+        const response = await fetch('/api/content');
+        const content = await response.json();
 
-        for (var selector in content) {
-            if (!content.hasOwnProperty(selector)) continue;
-            var el = document.querySelector('[data-selector="' + selector + '"]');
+        for (const [selector, value] of Object.entries(content)) {
+            const el = document.querySelector(`[data-selector="${selector}"]`);
             if (el) {
-                if (el.tagName === 'IMG') {
-                    el.src = content[selector];
-                } else {
-                    el.textContent = content[selector];
-                }
+                el[el.tagName === 'IMG' ? 'src' : 'textContent'] = value;
             }
         }
-    }
+    };
 
-    function cmsSaveAll() {
+    const cmsSaveAll = () => {
         cmsShowStatus('Saving...');
-        setTimeout(function () { cmsShowStatus('All changes saved!'); }, 500);
-    }
+        setTimeout(() => cmsShowStatus('All changes saved!'), 500);
+    };
 
-    async function cmsLogout() {
+    const cmsLogout = async () => {
         await fetch('/api/auth/logout', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: { Authorization: `Bearer ${token}` }
         });
         localStorage.removeItem('cms-token');
         token = null;
         location.reload();
-    }
+    };
 
-    function cmsShowStatus(message) {
-        var status = document.getElementById('cmsStatus');
+    const cmsShowStatus = (message) => {
+        const status = document.getElementById('cmsStatus');
         if (!status) return;
         status.textContent = message;
         status.classList.add('show');
-        setTimeout(function () { status.classList.remove('show'); }, 3000);
-    }
+        setTimeout(() => status.classList.remove('show'), 3000);
+    };
 
     // ── User icon auto-hide ──────────────────────────────────────
 
-    function setupUserIconAutoHide() {
-        var icon = document.getElementById('userIconBtn');
+    const setupUserIconAutoHide = () => {
+        const icon = document.getElementById('userIconBtn');
         if (!icon) return;
-        var hideTimer = null;
+        let hideTimer = null;
 
-        function startHideTimer() {
+        const startHideTimer = () => {
             clearTimeout(hideTimer);
-            hideTimer = setTimeout(function () {
-                icon.classList.add('hidden-offscreen');
-            }, 10000);
-        }
+            hideTimer = setTimeout(() => icon.classList.add('hidden-offscreen'), 10000);
+        };
 
         startHideTimer();
 
-        document.addEventListener('mousemove', function (e) {
-            var nearBottom = e.clientY > window.innerHeight - 100;
-            var nearRight = e.clientX > window.innerWidth - 100;
-            if (nearBottom && nearRight) {
+        document.addEventListener('mousemove', (e) => {
+            if (e.clientY > window.innerHeight - 100 && e.clientX > window.innerWidth - 100) {
                 icon.classList.remove('hidden-offscreen');
                 startHideTimer();
             }
         });
 
-        icon.addEventListener('click', function () {
+        icon.addEventListener('click', () => {
             clearTimeout(hideTimer);
             icon.classList.remove('hidden-offscreen');
             startHideTimer();
         });
-    }
+    };
 
-    // ── Sidebar hamburger (index.html only) ──────────────────────
+    // ── Sidebar hamburger ────────────────────────────────────────
 
-    function setupSidebarHamburger() {
-        var hamburger = document.getElementById('navHamburger');
-        var nav = document.getElementById('productNav');
-        var overlay = document.getElementById('navOverlay');
+    const setupSidebarHamburger = () => {
+        const hamburger = document.getElementById('navHamburger');
+        const nav = document.getElementById('productNav');
+        const overlay = document.getElementById('navOverlay');
         if (!hamburger || !nav || !overlay) return;
 
-        function openNav() {
-            nav.classList.add('open');
-            overlay.classList.add('active');
-        }
+        const openNav = () => { nav.classList.add('open'); overlay.classList.add('active'); };
+        const closeNav = () => { nav.classList.remove('open'); overlay.classList.remove('active'); };
 
-        function closeNav() {
-            nav.classList.remove('open');
-            overlay.classList.remove('active');
-        }
-
-        hamburger.addEventListener('click', function () {
-            if (nav.classList.contains('open')) {
-                closeNav();
-            } else {
-                openNav();
-            }
-        });
-
+        hamburger.addEventListener('click', () => nav.classList.contains('open') ? closeNav() : openNav());
         overlay.addEventListener('click', closeNav);
-
-        nav.querySelectorAll('a').forEach(function (link) {
-            link.addEventListener('click', closeNav);
-        });
-    }
+        nav.querySelectorAll('a').forEach(link => link.addEventListener('click', closeNav));
+    };
 
     // ── User icon modal toggle ───────────────────────────────────
 
-    function setupUserIconModal() {
-        var icon = document.getElementById('userIconBtn');
-        var modal = document.getElementById('loginModal');
-        var loginView = document.getElementById('loginView');
-        var loggedInView = document.getElementById('loggedInView');
-        var modalLogoutBtn = document.getElementById('cmsModalLogoutBtn');
+    const setupUserIconModal = () => {
+        const icon = document.getElementById('userIconBtn');
+        const modal = document.getElementById('loginModal');
+        const loginView = document.getElementById('loginView');
+        const loggedInView = document.getElementById('loggedInView');
+        const modalLogoutBtn = document.getElementById('cmsModalLogoutBtn');
         if (!icon || !modal) return;
 
-        icon.addEventListener('click', function () {
+        icon.addEventListener('click', () => {
             if (token) {
-                if (loginView) loginView.classList.add('hidden');
-                if (loggedInView) loggedInView.classList.remove('hidden');
+                loginView?.classList.add('hidden');
+                loggedInView?.classList.remove('hidden');
             } else {
-                if (loginView) loginView.classList.remove('hidden');
-                if (loggedInView) loggedInView.classList.add('hidden');
+                loginView?.classList.remove('hidden');
+                loggedInView?.classList.add('hidden');
             }
             modal.classList.add('active');
         });
 
-        if (modalLogoutBtn) {
-            modalLogoutBtn.addEventListener('click', function () {
-                modal.classList.remove('active');
-                cmsLogout();
-            });
-        }
-
-        window.addEventListener('click', function (event) {
-            if (event.target === modal) {
-                modal.classList.remove('active');
-            }
+        modalLogoutBtn?.addEventListener('click', () => {
+            modal.classList.remove('active');
+            cmsLogout();
         });
-    }
 
-    // ── Ctrl+Enter to save in edit modal ─────────────────────────
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    };
 
-    function setupKeyboardShortcuts() {
-        var editContent = document.getElementById('editContent');
-        if (!editContent) return;
-        editContent.addEventListener('keydown', function (e) {
+    // ── Keyboard shortcuts ───────────────────────────────────────
+
+    const setupKeyboardShortcuts = () => {
+        document.getElementById('editContent')?.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') cmsSaveContent();
         });
-    }
+    };
 
     // ── Dev login link ───────────────────────────────────────────
 
-    function checkDevMode() {
-        fetch('/api/dev-mode').then(function (r) {
-            if (r.ok) {
-                var link = document.getElementById('devLoginLink');
-                if (link) link.classList.remove('hidden');
-            }
-        }).catch(function () {});
-    }
+    const checkDevMode = () => {
+        fetch('/api/dev-mode')
+            .then(r => { if (r.ok) document.getElementById('devLoginLink')?.classList.remove('hidden'); })
+            .catch(() => {});
+    };
 
     // ── Init ─────────────────────────────────────────────────────
 
-    document.addEventListener('DOMContentLoaded', async function () {
+    document.addEventListener('DOMContentLoaded', async () => {
         injectCmsHtml();
         setupEventListeners();
         setupUserIconAutoHide();
@@ -424,10 +367,10 @@
         console.log('[CMS] Token in localStorage:', token ? 'yes' : 'no');
 
         if (token) {
-            var check = await fetch('/api/auth/check', {
-                headers: { 'Authorization': 'Bearer ' + token }
+            const check = await fetch('/api/auth/check', {
+                headers: { Authorization: `Bearer ${token}` }
             });
-            var result = await check.json();
+            const result = await check.json();
             console.log('[CMS] Auth check result:', result);
 
             if (result.logged) {
