@@ -61,7 +61,7 @@ async function botCreatePost(broadcast, renderCard) {
     dayKey: todayKey(),
   })
   const html = await renderCard(post)
-  broadcast('new-post', html)
+  broadcast('new-post', html, post.day_key)
   console.log(`[BOT] Created post: ${post.id} — "${post.topic}"`)
 }
 
@@ -77,7 +77,7 @@ async function botEditRandomPost(broadcast, renderCard) {
 
   const updated = editPost(post.id, { topic: post.topic, body: newBody })
   const html = await renderCard(updated)
-  broadcast('edit-post', html)
+  broadcast('edit-post', html, updated.day_key)
   console.log(`[BOT] Edited post: ${post.id}`)
 }
 

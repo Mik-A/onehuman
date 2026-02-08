@@ -32,29 +32,57 @@ function connectSSE() {
     const grid = document.getElementById('grid')
     if (!grid) return
 
-    // Only insert if viewing today
-    const today = new Date().toISOString().split('T')[0]
-    if (activeDay !== today) return
+    let html, dayKey
+    try {
+      const payload = JSON.parse(e.data)
+      html = payload.html
+      dayKey = payload.dayKey
+    } catch {
+      html = e.data
+      dayKey = ''
+    }
+
+    // Only insert if the post belongs to the day we're viewing
+    if (dayKey && dayKey !== activeDay) return
 
     // Dedup — skip if card already in DOM (from HTMX response)
     const temp = document.createElement('div')
-    temp.innerHTML = e.data.trim()
+    temp.innerHTML = html.trim()
     const newCard = temp.firstElementChild
     if (newCard && document.getElementById(newCard.id)) return
 
-    // Remove "no posts" message
-    const empty = grid.querySelector('.grid__empty')
-    if (empty) empty.remove()
+    // Remove empty placeholders
+    grid.querySelectorAll('.card--empty').forEach(c => c.remove())
 
-    grid.insertAdjacentHTML('afterbegin', e.data)
-    if (typeof htmx !== 'undefined' && grid.firstElementChild) {
-      htmx.process(grid.firstElementChild)
+    // Demote current latest card
+    const oldLatest = grid.querySelector('.card--latest')
+    if (oldLatest) oldLatest.classList.remove('card--latest')
+
+    // Insert after the + button (newest on top)
+    const fab = grid.querySelector('.fab')
+    if (fab) {
+      fab.insertAdjacentHTML('afterend', html)
+      const inserted = fab.nextElementSibling
+      if (inserted) {
+        inserted.classList.add('card--latest')
+        if (typeof htmx !== 'undefined') htmx.process(inserted)
+      }
+    } else {
+      grid.insertAdjacentHTML('afterbegin', html)
     }
   })
 
   evtSource.addEventListener('edit-post', (e) => {
+    let html
+    try {
+      const payload = JSON.parse(e.data)
+      html = payload.html
+    } catch {
+      html = e.data
+    }
+
     const temp = document.createElement('div')
-    temp.innerHTML = e.data.trim()
+    temp.innerHTML = html.trim()
     const newCard = temp.firstElementChild
     if (!newCard) return
 
@@ -142,11 +170,37 @@ document.addEventListener('htmx:afterSwap', async (e) => {
   const fpFields = target.querySelectorAll('[name="fingerprint"]')
   fpFields.forEach(field => { field.value = getFingerprint() })
 
-  // Track active day when grid is swapped
+  // Set day_key on post form to the currently viewed day
+  const dayKeyField = target.querySelector('#post-day-key')
+  if (dayKeyField) dayKeyField.value = activeDay
+
+  // When a new post is inserted via HTMX (after .fab), promote to latest
+  if (target.classList?.contains('fab')) {
+    const grid = document.getElementById('grid')
+    if (grid) {
+      const oldLatest = grid.querySelector('.card--latest')
+      if (oldLatest) oldLatest.classList.remove('card--latest')
+      grid.querySelectorAll('.card--empty').forEach(c => c.remove())
+    }
+    const newCard = target.nextElementSibling
+    if (newCard && newCard.classList?.contains('card')) {
+      newCard.classList.add('card--latest')
+    }
+  }
+
+  // Track active day when grid is swapped via day pill
   if (target.id === 'grid') {
     const path = e.detail.requestConfig?.path || ''
     const match = path.match(/\/day\/(\d{4}-\d{2}-\d{2})/)
-    if (match) activeDay = match[1]
+    if (match) {
+      activeDay = match[1]
+      // Update grid data attribute
+      target.dataset.day = activeDay
+      // Move active class to the clicked pill
+      document.querySelectorAll('.day-pill').forEach(pill => {
+        pill.classList.toggle('day-pill--active', pill.dataset.date === activeDay)
+      })
+    }
   }
 
   // Start PoW if post form was loaded

@@ -1,5 +1,5 @@
 <% days.forEach(day => { %>
-  <button class="day-pill<%= day.isToday ? ' day-pill--today' : '' %>"
+  <button class="day-pill<%= day.isToday ? ' day-pill--today day-pill--active' : '' %><%= day.isYesterday ? ' day-pill--yesterday' : '' %>"
           data-date="<%= day.dateStr %>"
           hx-get="/day/<%= day.dateStr %>"
           hx-target="#grid"

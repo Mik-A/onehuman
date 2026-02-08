@@ -76,11 +76,11 @@ const editLimiter = rateLimit({
 // --- SSE client management ---
 const sseClients = new Map()
 
-function broadcast(event, html) {
-  // SSE data lines cannot contain bare newlines — prefix continuation lines
-  const data = html.replace(/\n/g, '\ndata: ')
+function broadcast(event, html, dayKey = '') {
+  // Wrap html + dayKey as JSON so client can read both
+  const payload = JSON.stringify({ html, dayKey })
   for (const [, res] of sseClients) {
-    res.write(`event: ${event}\ndata: ${data}\n\n`)
+    res.write(`event: ${event}\ndata: ${payload}\n\n`)
   }
 }
 
@@ -138,6 +138,12 @@ function getWeekDays() {
 
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const today = todayKey()
+
+  // Compute yesterday's key
+  const yesterdayDate = new Date(now)
+  yesterdayDate.setUTCDate(now.getUTCDate() - 1)
+  const yesterday = yesterdayDate.toISOString().split('T')[0]
+
   const days = []
 
   for (let i = 0; i < 7; i++) {
@@ -149,16 +155,17 @@ function getWeekDays() {
       date: d.getUTCDate(),
       dateStr,
       isToday: dateStr === today,
+      isYesterday: dateStr === yesterday,
     })
   }
 
   return { days, today }
 }
 
-async function renderCard(post) {
+async function renderCard(post, isLatest = false) {
   return ejs.renderFile(
     join(__dirname, 'views', 'partials', 'card.html'),
-    { post, relativeTime },
+    { post, relativeTime, isLatest },
   )
 }
 
@@ -190,7 +197,7 @@ app.get('/post-form', (req, res) => {
 
 // --- Create post ---
 app.post('/post', postLimiter, async (req, res) => {
-  const { topic, body, fingerprint, pow_prefix, pow_nonce } = req.body
+  const { topic, body, fingerprint, day_key, pow_prefix, pow_nonce } = req.body
 
   // Verify proof-of-work
   if (!pow_prefix || pow_nonce === undefined || !verifyPoW(pow_prefix, String(pow_nonce))) {
@@ -208,6 +215,18 @@ app.post('/post', postLimiter, async (req, res) => {
     return res.status(422).send('<p class="error">Body must be 180 characters or less.</p>')
   }
 
+  // Use the active day from the client, fall back to today
+  let dayKey = todayKey()
+  if (day_key && /^\d{4}-\d{2}-\d{2}$/.test(day_key)) {
+    // Validate day_key is within the 7-day window
+    const cutoff = new Date()
+    cutoff.setUTCDate(cutoff.getUTCDate() - 7)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+    if (day_key >= cutoffStr && day_key <= todayKey()) {
+      dayKey = day_key
+    }
+  }
+
   // Track human activity for the bot
   if (fingerprint) onHumanActivity()
 
@@ -215,11 +234,11 @@ app.post('/post', postLimiter, async (req, res) => {
     topic: topic.trim(),
     body: body.trim(),
     fingerprint: fingerprint || null,
-    dayKey: todayKey(),
+    dayKey,
   })
 
   const html = await renderCard(post)
-  broadcast('new-post', html)
+  broadcast('new-post', html, post.day_key)
   res.send(html)
 })
 
@@ -260,7 +279,7 @@ app.put('/post/:id/edit', editLimiter, async (req, res) => {
 
   const updated = editPost(req.params.id, { topic: topic.trim(), body: body.trim() })
   const html = await renderCard(updated)
-  broadcast('edit-post', html)
+  broadcast('edit-post', html, updated.day_key)
   res.send(html)
 })
 
@@ -286,7 +305,7 @@ app.post('/post/:id/claim', async (req, res) => {
   const hash = await bcrypt.hash(pin, 10)
   const updated = claimPost(req.params.id, hash)
   const html = await renderCard(updated)
-  broadcast('edit-post', html)
+  broadcast('edit-post', html, updated.day_key)
   res.send(html)
 })
 
@@ -313,7 +332,7 @@ app.put('/post/:id/claimed-edit', editLimiter, async (req, res) => {
 
   const updated = editPost(req.params.id, { topic: topic.trim(), body: body.trim() })
   const html = await renderCard(updated)
-  broadcast('edit-post', html)
+  broadcast('edit-post', html, updated.day_key)
   res.send(html)
 })
 

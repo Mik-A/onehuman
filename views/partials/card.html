@@ -1,24 +1,18 @@
-<article class="card<%= post.claimed ? ' card--claimed' : '' %>" id="post-<%= post.id %>">
+<article class="card<%= post.claimed ? ' card--claimed' : '' %><%= (typeof isLatest !== 'undefined' && isLatest) ? ' card--latest' : '' %>" id="post-<%= post.id %>">
   <h3 class="card__topic"><%= post.topic %></h3>
   <p class="card__body"><%= post.body %></p>
   <footer class="card__meta">
     <span class="card__time"><%= relativeTime(post.created_at) %></span>
     <span class="card__edits"
-          onclick="toggleOrigin('<%= post.id %>')"
-          title="Show original">
+          hx-get="/post/<%= post.id %>/edit-form"
+          hx-target="#post-<%= post.id %>"
+          hx-swap="outerHTML"
+          title="Edit">
       ✏️ <%= post.edit_count %>
     </span>
     <% if (post.claimed) { %>
       <span class="card__lock" title="Claimed">🔒</span>
-      <button hx-get="/post/<%= post.id %>/edit-form"
-              hx-target="#post-<%= post.id %>"
-              hx-swap="outerHTML"
-              class="card__edit-btn">Edit (mine)</button>
     <% } else { %>
-      <button hx-get="/post/<%= post.id %>/edit-form"
-              hx-target="#post-<%= post.id %>"
-              hx-swap="outerHTML"
-              class="card__edit-btn">Edit</button>
       <button hx-get="/post/<%= post.id %>/claim-form"
               hx-target="#modal"
               hx-swap="innerHTML"

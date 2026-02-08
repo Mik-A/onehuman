@@ -2,8 +2,8 @@
   <div class="modal__content" onclick="event.stopPropagation()">
     <h2>Write on the wall</h2>
     <form hx-post="/post"
-          hx-target="#grid"
-          hx-swap="afterbegin">
+          hx-target="#grid .fab"
+          hx-swap="afterend">
       <div class="form-errors"></div>
       <label>
         Topic <span class="char-count" id="topic-count">0/60</span>
@@ -16,6 +16,7 @@
                   oninput="updateCount(this, 'body-count', 180)"></textarea>
       </label>
       <input type="hidden" name="fingerprint">
+      <input type="hidden" name="day_key" id="post-day-key">
       <input type="hidden" name="pow_prefix" id="pow-prefix">
       <input type="hidden" name="pow_nonce" id="pow-nonce">
       <div id="pow-status" class="pow-status"></div>

@@ -1,7 +1,17 @@
+<button class="fab"
+        hx-get="/post-form"
+        hx-target="#modal"
+        hx-swap="innerHTML">+</button>
 <% if (posts.length === 0) { %>
-  <p class="grid__empty">No posts yet. Be the first to write on the wall.</p>
+  <% for (let i = 0; i < 6; i++) { %>
+    <article class="card card--empty">
+      <h3 class="card__topic"></h3>
+      <p class="card__body"></p>
+      <footer class="card__meta"></footer>
+    </article>
+  <% } %>
 <% } else { %>
-  <% posts.forEach(post => { %>
-    <%- include('card.html', { post, relativeTime }) %>
+  <% posts.forEach((post, i) => { %>
+    <%- include('card.html', { post, relativeTime, isLatest: i === 0 }) %>
   <% }) %>
 <% } %>
