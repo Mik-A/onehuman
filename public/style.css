@@ -234,6 +234,18 @@ main {
   color: var(--text-muted);
 }
 
+.card__edit-icon {
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  padding: 0.25rem;
+  user-select: none;
+}
+
+.card__edit-icon:hover {
+  opacity: 0.7;
+}
+
 .card__edits {
   font-size: 0.75rem;
   color: var(--text-muted);

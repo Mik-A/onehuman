@@ -42,8 +42,11 @@ app.use(helmet({
   },
 }))
 
-// --- Compression ---
-app.use(compression())
+// --- Compression (skip for SSE stream) ---
+app.use((req, res, next) => {
+  if (req.path === '/stream') return next()
+  compression()(req, res, next)
+})
 
 // --- Static files ---
 app.use(express.static(join(__dirname, 'public')))
@@ -81,6 +84,7 @@ function broadcast(event, html, dayKey = '') {
   const payload = JSON.stringify({ html, dayKey })
   for (const [, res] of sseClients) {
     res.write(`event: ${event}\ndata: ${payload}\n\n`)
+    if (typeof res.flush === 'function') res.flush()
   }
 }
 
@@ -375,6 +379,7 @@ app.get('/stream', (req, res) => {
   // Keep-alive every 30 s
   const keepalive = setInterval(() => {
     res.write(':keepalive\n\n')
+    if (typeof res.flush === 'function') res.flush()
   }, 30000)
 
   req.on('close', () => {
