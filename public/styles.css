@@ -549,3 +549,351 @@ footer p {
         padding: 1.5rem;
     }
 }
+
+/* ============================
+   Utility Classes
+   ============================ */
+
+.hidden {
+    display: none;
+}
+
+.mt-2 {
+    margin-top: 2rem;
+}
+
+.dev-login-link {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+.dev-login-link a {
+    color: var(--grey);
+}
+
+.login-message {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--grey);
+}
+
+/* ============================
+   CMS Styles
+   ============================ */
+
+.cms-toolbar {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #faf9f7;
+    padding: 15px 20px;
+    border-radius: 8px;
+    z-index: 999;
+    font-size: 0.9rem;
+    display: none;
+}
+
+.cms-toolbar button {
+    background: #c54b2a;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 10px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.cms-toolbar button:hover {
+    background: #a83b1f;
+}
+
+.cms-editable {
+    position: relative;
+    outline: 2px dashed transparent;
+    transition: outline 0.2s;
+}
+
+body.cms-logged-in .cms-editable {
+    cursor: pointer;
+}
+
+body.cms-logged-in .cms-editable:hover {
+    outline: 2px dashed #c54b2a;
+}
+
+.cms-edit-icon {
+    position: absolute;
+    top: -25px;
+    right: 0;
+    width: 24px;
+    height: 24px;
+    background: #c54b2a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 100;
+}
+
+body.cms-logged-in .cms-editable:hover .cms-edit-icon {
+    display: flex;
+}
+
+.cms-image-upload {
+    position: absolute;
+    top: -25px;
+    right: 30px;
+    background: #c54b2a;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: none;
+    z-index: 100;
+}
+
+body.cms-logged-in .cms-image-container:hover .cms-image-upload {
+    display: block;
+}
+
+.cms-image-container {
+    position: relative;
+    display: inline-block;
+}
+
+.cms-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1001;
+    align-items: center;
+    justify-content: center;
+}
+
+.cms-modal.active {
+    display: flex;
+}
+
+.cms-modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.cms-modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.cms-modal-content textarea,
+.cms-modal-content input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.cms-modal-content textarea {
+    min-height: 200px;
+    resize: vertical;
+}
+
+.cms-modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.cms-modal-buttons button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.cms-save {
+    background: #c54b2a;
+    color: white;
+}
+
+.cms-save:hover {
+    background: #a83b1f;
+}
+
+.cms-cancel {
+    background: #e8e6e3;
+    color: #1a1a1a;
+}
+
+.cms-cancel:hover {
+    background: #d0ccc8;
+}
+
+.cms-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #c54b2a;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    display: none;
+    z-index: 1000;
+}
+
+.cms-status.show {
+    display: block;
+}
+
+@media (max-width: 700px) {
+    .cms-toolbar {
+        top: 60px;
+        right: 10px;
+        padding: 12px 15px;
+        flex-direction: column;
+    }
+
+    .cms-toolbar button {
+        margin-left: 0;
+        margin-top: 8px;
+        width: 100%;
+    }
+}
+
+/* ============================
+   Page content styles
+   ============================ */
+
+.divider {
+    height: 1px;
+    background: var(--light-grey);
+    margin: 0;
+}
+
+.systems {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.system-card {
+    padding: 2rem;
+    border: 1px solid var(--light-grey);
+    border-radius: 8px;
+}
+
+.system-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--grey);
+    margin-bottom: 1rem;
+}
+
+.steps {
+    display: grid;
+    gap: 3rem;
+    margin-top: 2rem;
+}
+
+.step-content h3 {
+    margin-bottom: 0.5rem;
+}
+
+.price-block {
+    margin-top: 2rem;
+    padding: 2rem;
+    border: 1px solid var(--light-grey);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.price-amount {
+    font-size: 3rem;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+}
+
+.price-unit {
+    font-size: 1rem;
+    color: var(--grey);
+    margin-top: 0.5rem;
+}
+
+.price-note {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--grey);
+    max-width: none;
+}
+
+.philosophy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.philosophy-item {
+    padding: 1.5rem;
+    border: 1px solid var(--light-grey);
+    border-radius: 8px;
+}
+
+.philosophy-item h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.about-intro {
+    font-size: 1.15rem;
+    line-height: 1.8;
+}
+
+.contact-block {
+    margin-top: 2rem;
+}
+
+.contact-block p {
+    font-size: 1.25rem;
+    color: var(--accent);
+}
+
+@media (max-width: 700px) {
+    .systems {
+        grid-template-columns: 1fr;
+    }
+
+    .philosophy-grid {
+        grid-template-columns: 1fr;
+    }
+}
