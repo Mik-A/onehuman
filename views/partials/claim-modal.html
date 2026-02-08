@@ -1,0 +1,20 @@
+<div class="modal__backdrop" onclick="closeModal()">
+  <div class="modal__content" onclick="event.stopPropagation()">
+    <h2>Claim this post</h2>
+    <p>Set a PIN (4–8 characters) to lock this post. Only you can edit it afterwards.</p>
+    <form hx-post="/post/<%= post.id %>/claim"
+          hx-target="#post-<%= post.id %>"
+          hx-swap="outerHTML">
+      <div class="form-errors"></div>
+      <label>
+        PIN
+        <input type="password" name="pin" minlength="4" maxlength="8"
+               required placeholder="4–8 characters" autofocus>
+      </label>
+      <div class="form__actions">
+        <button type="submit">Claim</button>
+        <button type="button" onclick="closeModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>

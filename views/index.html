@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Wall</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
+<body class="dark">
+
+  <nav id="day-nav" class="day-nav">
+    <%- include('partials/day-nav.html', { days, today }) %>
+  </nav>
+
+  <main>
+    <div id="grid" class="masonry" data-day="<%= today %>">
+      <%- include('partials/grid.html', { posts, relativeTime }) %>
+    </div>
+  </main>
+
+  <button id="new-post-fab"
+          class="fab"
+          hx-get="/post-form"
+          hx-target="#modal"
+          hx-swap="innerHTML">+</button>
+
+  <div id="modal"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

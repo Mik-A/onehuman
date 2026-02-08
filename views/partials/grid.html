@@ -1,0 +1,7 @@
+<% if (posts.length === 0) { %>
+  <p class="grid__empty">No posts yet. Be the first to write on the wall.</p>
+<% } else { %>
+  <% posts.forEach(post => { %>
+    <%- include('card.html', { post, relativeTime }) %>
+  <% }) %>
+<% } %>

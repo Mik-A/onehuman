@@ -1,437 +1,389 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
-const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+import express from 'express'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { createHash, randomBytes } from 'node:crypto'
+import helmet from 'helmet'
+import compression from 'compression'
+import rateLimit from 'express-rate-limit'
+import bcrypt from 'bcryptjs'
+import ejs from 'ejs'
+import {
+  createPost,
+  editPost,
+  claimPost,
+  getPostsForDay,
+  getPost,
+  todayKey,
+  purgeOldPosts,
+} from './db.js'
+import { startBot, onHumanActivity } from './bot.js'
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
-// Security Middleware
-app.use(helmet()); // Set security headers
-app.use(helmet.contentSecurityPolicy({
-  directives: {
-    defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
-    styleSrc: ["'self'", "'unsafe-inline'", 'fonts.googleapis.com', 'fonts.gstatic.com'],
-    fontSrc: ['fonts.gstatic.com'],
-    imgSrc: ["'self'", 'data:'],
-    connectSrc: ["'self'"]
-  }
-}));
+const app = express()
+const PORT = process.env.PORT || 3000
 
-// Rate limiting
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
-  message: 'Too many login attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// --- View engine (EJS rendering .html files) ---
+app.engine('html', ejs.renderFile)
+app.set('view engine', 'html')
+app.set('views', join(__dirname, 'views'))
 
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // General API rate limit
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Configuration
-const ALLOWED_EMAILS = require('./config/emails.json').emails;
-const SESSIONS_FILE = './data/sessions.json';
-const CONTENT_FILE = './data/content.json';
-const LOGIN_LINKS_FILE = './data/login_links.json';
-const TOKEN_LENGTH = 32; // bytes for crypto tokens
-const MAX_CONTENT_LENGTH = 10000; // Max characters for content
-const SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
-const LOGIN_LINK_EXPIRY = 15 * 60 * 1000; // 15 minutes
-
-// Email configuration
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'localhost',
-  port: process.env.SMTP_PORT || 587,
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-  auth: process.env.SMTP_USER ? {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  } : undefined
-});
-
-// Ensure required directories exist
-['data', 'public/images'].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
-
-// Initialize files
-if (!fs.existsSync(SESSIONS_FILE)) {
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify({}));
-} else {
-  // Clear all sessions on server start (logout everyone)
-  console.log('[INIT] Clearing all sessions on server start');
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify({}));
-}
-if (!fs.existsSync(CONTENT_FILE)) {
-  fs.writeFileSync(CONTENT_FILE, JSON.stringify({}));
-}
-if (!fs.existsSync(LOGIN_LINKS_FILE)) {
-  fs.writeFileSync(LOGIN_LINKS_FILE, JSON.stringify({}));
-}
-
-// Middleware
-app.use(express.static('public'));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(apiLimiter); // Apply general rate limiting
-
-// Auth middleware
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token || !isValidToken(token)) {
-    return res.status(401).json({ error: 'Invalid or missing token' });
-  }
-  
-  const sessions = getSessions();
-  if (!sessions[token] || sessions[token].expires <= Date.now()) {
-    return res.status(401).json({ error: 'Token expired' });
-  }
-  
-  req.user = sessions[token];
-  next();
-}
-
-// Multer setup for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'public/images');
+// --- Security ---
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+    },
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+}))
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
-    if (allowed.test(file.originalname)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  }
-});
+// --- Compression ---
+app.use(compression())
 
-// Helper functions
-function getSessions() {
-  return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-}
+// --- Static files ---
+app.use(express.static(join(__dirname, 'public')))
 
-function saveSessions(sessions) {
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
-}
+// --- Body parsing ---
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 
-function getContent() {
-  return JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf8'));
-}
+// --- Rate limiters (per fingerprint) ---
+const postLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  keyGenerator: (req) => req.headers['x-fingerprint'] || req.ip,
+  message: '<p class="error">Too many posts. Try again later.</p>',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+})
 
-function saveContent(content) {
-  fs.writeFileSync(CONTENT_FILE, JSON.stringify(content, null, 2));
-}
+const editLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  keyGenerator: (req) => req.headers['x-fingerprint'] || req.ip,
+  message: '<p class="error">Too many edits. Try again later.</p>',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+})
 
-function generateToken() {
-  return crypto.randomBytes(TOKEN_LENGTH).toString('hex');
-}
+// --- SSE client management ---
+const sseClients = new Map()
 
-function isValidToken(token) {
-  // Token should be a 64 character hex string (32 bytes)
-  return typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
-}
-
-function sanitizeContent(content) {
-  if (typeof content !== 'string') return '';
-  if (content.length > MAX_CONTENT_LENGTH) {
-    content = content.substring(0, MAX_CONTENT_LENGTH);
-  }
-  // Remove all HTML tags, keep only plain text
-  return content.replace(/<[^>]*>/g, '').trim();
-}
-
-function getLoginLinks() {
-  return JSON.parse(fs.readFileSync(LOGIN_LINKS_FILE, 'utf8'));
-}
-
-function saveLoginLinks(links) {
-  fs.writeFileSync(LOGIN_LINKS_FILE, JSON.stringify(links, null, 2));
-}
-
-async function sendLoginEmail(email, token) {
-  const loginLink = `${process.env.BASE_URL || 'http://localhost:3000'}/auth/verify?token=${token}`;
-
-  // In development mode, skip actual email and log the link to console
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[EMAIL] ===== DEV MODE - Login Link =====');
-    console.log(`[EMAIL] Email: ${email}`);
-    console.log(`[EMAIL] Link: ${loginLink}`);
-    console.log('[EMAIL] ===================================');
-    return true;
-  }
-
-  try {
-    console.log('[EMAIL] Preparing email for:', email);
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@onehuman.ai',
-      to: email,
-      subject: 'Your One Human Login Link',
-      html: `
-        <h2>Login to One Human</h2>
-        <p>Click the link below to log in (valid for 15 minutes):</p>
-        <p><a href="${loginLink}" style="background-color: #c54b2a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Login to Dashboard</a></p>
-        <p>Or copy this link: <code>${loginLink}</code></p>
-        <p>If you didn't request this link, you can safely ignore this email.</p>
-      `
-    });
-    console.log('[EMAIL] Email sent successfully to:', email);
-    return true;
-  } catch (error) {
-    console.error('[EMAIL] Failed to send email to:', email);
-    console.error('[EMAIL] Error details:', error.message);
-    return false;
+function broadcast(event, html) {
+  // SSE data lines cannot contain bare newlines — prefix continuation lines
+  const data = html.replace(/\n/g, '\ndata: ')
+  for (const [, res] of sseClients) {
+    res.write(`event: ${event}\ndata: ${data}\n\n`)
   }
 }
 
-// Routes
+// --- Proof-of-Work ---
+const powChallenges = new Map()
+const POW_DIFFICULTY = 4
+const POW_TARGET = '0'.repeat(POW_DIFFICULTY)
+const POW_TTL = 5 * 60 * 1000 // 5 minutes
 
-// Check if logged in
-app.get('/api/auth/check', (req, res) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token || !isValidToken(token)) {
-    return res.json({ logged: false });
-  }
-  
-  const sessions = getSessions();
-  if (sessions[token] && sessions[token].expires > Date.now()) {
-    res.json({ logged: true, email: sessions[token].email });
-  } else {
-    res.json({ logged: false });
-  }
-});
+function verifyPoW(prefix, nonce) {
+  if (!powChallenges.has(prefix)) return false
+  const hash = createHash('sha256').update(prefix + nonce).digest('hex')
+  const valid = hash.startsWith(POW_TARGET)
+  if (valid) powChallenges.delete(prefix)
+  return valid
+}
 
-// Login - request link (with rate limiting)
-app.post('/api/auth/request-link', loginLimiter, async (req, res) => {
-  const { email } = req.body;
-  const ip = req.ip || req.connection.remoteAddress;
-  
-  console.log(`[LOGIN] Request from IP ${ip}, email: ${email}`);
-  
-  if (!email || typeof email !== 'string') {
-    console.error('[LOGIN] Invalid email format received');
-    return res.status(400).json({ error: 'Invalid email' });
+// Clean expired challenges every minute
+setInterval(() => {
+  const now = Date.now()
+  for (const [prefix, created] of powChallenges) {
+    if (now - created > POW_TTL) powChallenges.delete(prefix)
   }
-  
-  const trimmedEmail = email.trim().toLowerCase();
-  console.log('[LOGIN] Validating email:', trimmedEmail);
-  
-  if (!ALLOWED_EMAILS.includes(trimmedEmail)) {
-    console.warn('[LOGIN] Email not authorized:', trimmedEmail);
-    return res.json({ success: false, authorized: false, message: 'Email not on the access list. Contact the site owner to request access.' });
-  }
-  
-  console.log('[LOGIN] Email authorized, generating token...');
-  const token = generateToken();
-  const links = getLoginLinks();
-  
-  // Store token with expiration
-  links[token] = {
-    email: trimmedEmail,
-    expires: Date.now() + LOGIN_LINK_EXPIRY,
-    attempts: 0
-  };
-  saveLoginLinks(links);
-  console.log('[LOGIN] Token generated and stored');
-  
-  // Send email
-  console.log('[LOGIN] Sending email to:', trimmedEmail);
-  const emailSent = await sendLoginEmail(trimmedEmail, token);
-  
-  if (emailSent) {
-    console.log('[LOGIN] Email sent successfully');
-    res.json({ success: true, message: 'If email is authorized, link sent' });
-  } else {
-    console.error('[LOGIN] Failed to send email');
-    res.status(500).json({ error: 'Failed to send email' });
-  }
-});
+}, 60 * 1000)
 
-// Verify login link
-app.get('/auth/verify', (req, res) => {
-  const { token } = req.query;
-  const ip = req.ip || req.connection.remoteAddress;
-  
-  console.log(`[AUTH] Verify request from IP ${ip}`);
-  
-  if (!token || !isValidToken(token)) {
-    console.error('[AUTH] Invalid token format');
-    return res.status(400).send('Invalid token format');
+// --- Helpers ---
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
+function relativeTime(dateStr) {
+  const now = new Date()
+  const date = new Date(dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`)
+  const diff = now - date
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  return `${days}d ago`
+}
+
+function getWeekDays() {
+  const now = new Date()
+  const utcDay = now.getUTCDay() // 0=Sun … 6=Sat
+  const monday = new Date(now)
+  monday.setUTCDate(now.getUTCDate() - ((utcDay + 6) % 7))
+
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const today = todayKey()
+  const days = []
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday)
+    d.setUTCDate(monday.getUTCDate() + i)
+    const dateStr = d.toISOString().split('T')[0]
+    days.push({
+      name: dayNames[i],
+      date: d.getUTCDate(),
+      dateStr,
+      isToday: dateStr === today,
+    })
   }
-  
-  console.log('[AUTH] Token format valid, checking expiration...');
-  const links = getLoginLinks();
-  const linkData = links[token];
-  
-  if (!linkData || linkData.expires <= Date.now()) {
-    console.warn('[AUTH] Link expired or not found');
-    return res.status(401).send('Link expired or invalid. <a href="/">Try logging in again</a>');
+
+  return { days, today }
+}
+
+async function renderCard(post) {
+  return ejs.renderFile(
+    join(__dirname, 'views', 'partials', 'card.html'),
+    { post, relativeTime },
+  )
+}
+
+// =====================================================================
+//  ROUTES
+// =====================================================================
+
+// --- Main page ---
+app.get('/', (req, res) => {
+  const { days, today } = getWeekDays()
+  const posts = getPostsForDay(today)
+  res.render('index', { days, today, posts, relativeTime })
+})
+
+// --- Day grid (HTMX partial) ---
+app.get('/day/:date', (req, res) => {
+  const { date } = req.params
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).send('<p class="error">Invalid date format</p>')
   }
-  
-  console.log('[AUTH] Link valid, creating session for:', linkData.email);
-  // Create session token
-  const sessionToken = generateToken();
-  const sessions = getSessions();
-  sessions[sessionToken] = {
-    email: linkData.email,
-    expires: Date.now() + SESSION_EXPIRY
-  };
-  saveSessions(sessions);
-  console.log('[AUTH] Session created for:', linkData.email);
-  
-  // Delete used link
-  delete links[token];
-  saveLoginLinks(links);
-  console.log('[AUTH] Login link consumed and deleted');
-  
-  // Use proper HTML escaping and CSP-safe approach
-  const encodedToken = sessionToken.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const posts = getPostsForDay(date)
+  res.render('partials/grid', { posts, relativeTime })
+})
+
+// --- Post form (HTMX partial) ---
+app.get('/post-form', (req, res) => {
+  res.render('partials/post-form')
+})
+
+// --- Create post ---
+app.post('/post', postLimiter, async (req, res) => {
+  const { topic, body, fingerprint, pow_prefix, pow_nonce } = req.body
+
+  // Verify proof-of-work
+  if (!pow_prefix || pow_nonce === undefined || !verifyPoW(pow_prefix, String(pow_nonce))) {
+    return res.status(422).send('<p class="error">Invalid proof of work. Please try again.</p>')
+  }
+
+  // Validate fields
+  if (!topic?.trim() || !body?.trim()) {
+    return res.status(422).send('<p class="error">Topic and body are required.</p>')
+  }
+  if (topic.length > 60) {
+    return res.status(422).send('<p class="error">Topic must be 60 characters or less.</p>')
+  }
+  if (body.length > 180) {
+    return res.status(422).send('<p class="error">Body must be 180 characters or less.</p>')
+  }
+
+  // Track human activity for the bot
+  if (fingerprint) onHumanActivity()
+
+  const post = createPost({
+    topic: topic.trim(),
+    body: body.trim(),
+    fingerprint: fingerprint || null,
+    dayKey: todayKey(),
+  })
+
+  const html = await renderCard(post)
+  broadcast('new-post', html)
+  res.send(html)
+})
+
+// --- Single card (for cancel / refresh) ---
+app.get('/post/:id/card', async (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  const html = await renderCard(post)
+  res.send(html)
+})
+
+// --- Edit form (HTMX partial) ---
+app.get('/post/:id/edit-form', (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  res.render('partials/edit-form', { post })
+})
+
+// --- Edit unclaimed post ---
+app.put('/post/:id/edit', editLimiter, async (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  if (post.claimed) {
+    return res.status(403).send('<p class="error">This post is claimed. Use your PIN to edit.</p>')
+  }
+
+  const { topic, body, fingerprint } = req.body
+  if (!topic?.trim() || !body?.trim()) {
+    return res.status(422).send('<p class="error">Topic and body are required.</p>')
+  }
+  if (topic.length > 60) return res.status(422).send('<p class="error">Topic too long.</p>')
+  if (body.length > 180) return res.status(422).send('<p class="error">Body too long.</p>')
+  if (body.trim().length < 20) {
+    return res.status(422).send('<p class="error">Body must be at least 20 characters.</p>')
+  }
+
+  if (fingerprint) onHumanActivity()
+
+  const updated = editPost(req.params.id, { topic: topic.trim(), body: body.trim() })
+  const html = await renderCard(updated)
+  broadcast('edit-post', html)
+  res.send(html)
+})
+
+// --- Claim form (HTMX partial) ---
+app.get('/post/:id/claim-form', (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  if (post.claimed) return res.status(400).send('<p class="error">Already claimed</p>')
+  res.render('partials/claim-modal', { post })
+})
+
+// --- Claim post (set PIN) ---
+app.post('/post/:id/claim', async (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  if (post.claimed) return res.status(400).send('<p class="error">Already claimed</p>')
+
+  const { pin } = req.body
+  if (!pin || pin.length < 4 || pin.length > 8) {
+    return res.status(422).send('<p class="error">PIN must be 4–8 characters.</p>')
+  }
+
+  const hash = await bcrypt.hash(pin, 10)
+  const updated = claimPost(req.params.id, hash)
+  const html = await renderCard(updated)
+  broadcast('edit-post', html)
+  res.send(html)
+})
+
+// --- Edit claimed post (requires PIN) ---
+app.put('/post/:id/claimed-edit', editLimiter, async (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+  if (!post.claimed) return res.status(400).send('<p class="error">Post is not claimed</p>')
+
+  const { pin, topic, body } = req.body
+  if (!pin) return res.status(422).send('<p class="error">PIN required</p>')
+
+  const match = await bcrypt.compare(pin, post.claim_hash)
+  if (!match) return res.status(403).send('<p class="error">Wrong PIN</p>')
+
+  if (!topic?.trim() || !body?.trim()) {
+    return res.status(422).send('<p class="error">Topic and body are required.</p>')
+  }
+  if (topic.length > 60) return res.status(422).send('<p class="error">Topic too long.</p>')
+  if (body.length > 180) return res.status(422).send('<p class="error">Body too long.</p>')
+  if (body.trim().length < 20) {
+    return res.status(422).send('<p class="error">Body must be at least 20 characters.</p>')
+  }
+
+  const updated = editPost(req.params.id, { topic: topic.trim(), body: body.trim() })
+  const html = await renderCard(updated)
+  broadcast('edit-post', html)
+  res.send(html)
+})
+
+// --- Origin reveal ---
+app.get('/post/:id/origin', (req, res) => {
+  const post = getPost(req.params.id)
+  if (!post) return res.status(404).send('<p class="error">Post not found</p>')
+
+  if (post.edit_count === 0) {
+    return res.send('<p class="origin__text">This is the original version.</p>')
+  }
+
   res.send(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Login Successful</title>
-        <meta charset="UTF-8">
-      </head>
-      <body>
-        <h2>Login Successful!</h2>
-        <p>Redirecting...</p>
-        <script nonce="${crypto.randomBytes(16).toString('base64')}">
-          (function() {
-            var token = '${encodedToken}';
-            localStorage.setItem('cms-token', token);
-            window.location.href = '/';
-          })();
-        </script>
-      </body>
-    </html>
-  `);
-});
+    <div class="origin__content">
+      <p class="origin__label">Original:</p>
+      <h4 class="origin__topic">${escapeHtml(post.original_topic)}</h4>
+      <p class="origin__body">${escapeHtml(post.original_body)}</p>
+    </div>
+  `)
+})
 
-// Dev mode helpers (dev only)
-if (process.env.NODE_ENV !== 'production') {
-  app.get('/api/dev-mode', (req, res) => res.json({ dev: true }));
-  app.get('/auth/dev-login', (req, res) => {
-    const email = ALLOWED_EMAILS[0] || 'dev@localhost';
-    const sessionToken = generateToken();
-    const sessions = getSessions();
-    sessions[sessionToken] = {
-      email,
-      expires: Date.now() + SESSION_EXPIRY
-    };
-    saveSessions(sessions);
-    console.log('[AUTH] Dev login session created for:', email);
+// --- PoW challenge ---
+app.get('/pow-challenge', (req, res) => {
+  const prefix = randomBytes(16).toString('hex')
+  powChallenges.set(prefix, Date.now())
+  res.json({ prefix, difficulty: POW_DIFFICULTY })
+})
 
-    const encodedToken = sessionToken.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    res.send(`
-      <!DOCTYPE html>
-      <html><head><meta charset="UTF-8"><title>Dev Login</title></head>
-      <body>
-        <script>
-          localStorage.setItem('cms-token', '${encodedToken}');
-          window.location.href = '/';
-        </script>
-      </body></html>
-    `);
-  });
-  console.log('[INIT] Dev login available at /auth/dev-login');
+// --- SSE stream ---
+app.get('/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no')
+  res.flushHeaders()
+
+  const clientId = Date.now() + Math.random()
+  sseClients.set(clientId, res)
+
+  // Keep-alive every 30 s
+  const keepalive = setInterval(() => {
+    res.write(':keepalive\n\n')
+  }, 30000)
+
+  req.on('close', () => {
+    clearInterval(keepalive)
+    sseClients.delete(clientId)
+  })
+})
+
+// =====================================================================
+//  ARCHIVE CLEANUP
+// =====================================================================
+function archiveCleanup() {
+  const cutoff = new Date()
+  cutoff.setUTCDate(cutoff.getUTCDate() - 7)
+  const cutoffKey = cutoff.toISOString().split('T')[0]
+  const result = purgeOldPosts(cutoffKey)
+  if (result.changes > 0) {
+    console.log(`[ARCHIVE] Deleted ${result.changes} posts older than ${cutoffKey}`)
+  }
 }
 
-// Logout
-app.post('/api/auth/logout', (req, res) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (token && isValidToken(token)) {
-    const sessions = getSessions();
-    delete sessions[token];
-    saveSessions(sessions);
-  }
-  res.json({ success: true });
-});
+setInterval(archiveCleanup, 60 * 60 * 1000) // hourly
+archiveCleanup() // run on startup
 
-// Save content (with auth middleware)
-app.post('/api/content/save', authenticateToken, (req, res) => {
-  const { selector, content } = req.body;
-  
-  if (!selector || typeof selector !== 'string' || !content) {
-    return res.status(400).json({ error: 'Invalid selector or content' });
-  }
-  
-  // Validate selector format (prevent path traversal)
-  if (!/^[a-zA-Z0-9_-]+$/.test(selector)) {
-    return res.status(400).json({ error: 'Invalid selector format' });
-  }
-  
-  // Sanitize content to prevent XSS
-  const sanitized = sanitizeContent(content);
-  const data = getContent();
-  data[selector] = sanitized;
-  saveContent(data);
-
-  res.json({ success: true, content: sanitized });
-});
-
-// Get content
-app.get('/api/content', (req, res) => {
-  const data = getContent();
-  res.json(data);
-});
-
-// Upload image (with auth middleware)
-app.post('/api/upload/image', authenticateToken, upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-  
-  res.json({ 
-    success: true, 
-    url: `/images/${req.file.filename}` 
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'FILE_TOO_LARGE') {
-      return res.status(413).json({ error: 'File too large' });
-    }
-    return res.status(400).json({ error: 'File upload error' });
-  }
-  
-  res.status(500).json({ error: 'Internal server error' });
-});
-
+// =====================================================================
+//  START
+// =====================================================================
 app.listen(PORT, () => {
-  console.log(`CMS Server running on http://localhost:${PORT}`);
-});
-
+  console.log(`The Wall running on http://localhost:${PORT}`)
+  startBot({ broadcast, renderCard })
+})

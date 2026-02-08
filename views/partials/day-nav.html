@@ -1,0 +1,11 @@
+<% days.forEach(day => { %>
+  <button class="day-pill<%= day.isToday ? ' day-pill--today' : '' %>"
+          data-date="<%= day.dateStr %>"
+          hx-get="/day/<%= day.dateStr %>"
+          hx-target="#grid"
+          hx-swap="innerHTML"
+          <% if (day.isToday) { %>aria-current="date"<% } %>>
+    <span class="day-pill__name"><%= day.name %></span>
+    <span class="day-pill__date"><%= day.date %></span>
+  </button>
+<% }) %>

@@ -1,0 +1,32 @@
+<article class="card card--editing" id="post-<%= post.id %>">
+  <form hx-put="/post/<%= post.id %>/<%= post.claimed ? 'claimed-edit' : 'edit' %>"
+        hx-target="#post-<%= post.id %>"
+        hx-swap="outerHTML">
+    <div class="form-errors"></div>
+    <% if (post.claimed) { %>
+      <label>
+        PIN
+        <input type="password" name="pin" minlength="4" maxlength="8"
+               required placeholder="Your claim PIN">
+      </label>
+    <% } %>
+    <label>
+      Topic <span class="char-count" id="edit-topic-count"><%= post.topic.length %>/60</span>
+      <input type="text" name="topic" value="<%= post.topic %>" maxlength="60" required
+             oninput="updateCount(this, 'edit-topic-count', 60)">
+    </label>
+    <label>
+      Body <span class="char-count" id="edit-body-count"><%= post.body.length %>/180</span>
+      <textarea name="body" maxlength="180" required rows="3" minlength="20"
+                oninput="updateCount(this, 'edit-body-count', 180)"><%= post.body %></textarea>
+    </label>
+    <input type="hidden" name="fingerprint">
+    <div class="form__actions">
+      <button type="submit">Save</button>
+      <button type="button"
+              hx-get="/post/<%= post.id %>/card"
+              hx-target="#post-<%= post.id %>"
+              hx-swap="outerHTML">Cancel</button>
+    </div>
+  </form>
+</article>

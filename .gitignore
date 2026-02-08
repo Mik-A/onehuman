@@ -4,3 +4,6 @@ data/sessions.json
 data/content.json
 .DS_Store
 *.log
+thewall.db
+thewall.db-shm
+thewall.db-wal
